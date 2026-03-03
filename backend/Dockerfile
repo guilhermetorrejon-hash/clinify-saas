@@ -2,24 +2,24 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar apenas package files primeiro para aproveitar cache
+# Copiar package files e prisma schema
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Instalar dependências
-RUN npm ci --only=production && npm install --save-dev prisma @prisma/cli
+# Instalar todas as dependências (incluindo dev)
+RUN npm ci
 
-# Gerar Prisma Client EXPLICITAMENTE com schema path
-RUN npx prisma generate --schema=./prisma/schema.prisma
+# Gerar Prisma Client
+RUN npm run prisma:generate
 
 # Copiar código restante
 COPY . .
 
-# Build da aplicação
+# Build com TypeScript
 RUN npm run build
 
-# Cleanup
-RUN npm ci --only=production && rm -rf node_modules/.cache
+# Remover devDependencies para imagem final
+RUN npm ci --only=production
 
 # Expor porta
 EXPOSE 3001
