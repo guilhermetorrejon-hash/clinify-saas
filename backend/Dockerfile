@@ -5,12 +5,13 @@ WORKDIR /app
 # Copiar package files e prisma schema
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 
 # Instalar todas as dependências (incluindo dev)
-RUN npm ci
+RUN npm ci && npm list prisma
 
-# Gerar Prisma Client
-RUN npm run prisma:generate
+# Gerar Prisma Client explicitamente
+RUN ls -la prisma/ && npx prisma generate --schema=./prisma/schema.prisma && ls -la node_modules/@prisma/client/
 
 # Copiar código restante
 COPY . .
