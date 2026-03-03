@@ -6,13 +6,13 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar dependências
-RUN npm ci
+RUN npm install
 
 # Copiar código
 COPY . .
 
-# Gerar Prisma Client
-RUN npx prisma generate
+# Gerar Prisma Client (com verbose para debug)
+RUN npx -y @prisma/cli generate --schema=./prisma/schema.prisma
 
 # Build TypeScript
 RUN npm run build
