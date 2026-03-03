@@ -2,28 +2,28 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar package files e prisma schema
+# Copiar package files APENAS
 COPY package*.json ./
-COPY prisma ./prisma/
-COPY prisma.config.ts ./
 
-# Instalar todas as dependências (incluindo dev)
-RUN npm ci && npm list prisma
+# Copiar prisma schema E config ANTES de npm install
+COPY prisma ./prisma
+COPY prisma.config.ts .
 
-# Gerar Prisma Client explicitamente
-RUN ls -la prisma/ && npx prisma generate --schema=./prisma/schema.prisma && ls -la node_modules/@prisma/client/
+# Instalar todas as dependências (dev também)
+RUN npm install
+
+# Gerar Prisma Client - DEVE FUNCIONAR AGORA
+RUN npx prisma generate
 
 # Copiar código restante
 COPY . .
 
-# Build com TypeScript
+# Build NestJS
 RUN npm run build
 
-# Remover devDependencies para imagem final
-RUN npm ci --only=production
+# Limpar cache e remover devDependencies para stage final
+RUN npm ci --omit=dev
 
-# Expor porta
 EXPOSE 3001
 
-# Start
 CMD ["npm", "run", "start:prod"]
