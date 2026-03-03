@@ -1,0 +1,195 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Profession {
+  MEDICO
+  NUTRICIONISTA
+  PSICOLOGO
+  ENFERMEIRO
+  DENTISTA
+  FARMACEUTICO
+  OUTRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+  PAST_DUE
+}
+
+enum PostCategory {
+  EDUCATIVO
+  INSTITUCIONAL
+  MOTIVACIONAL
+  CRIATIVO_ANUNCIO
+}
+
+enum PostFormat {
+  FEED
+  PORTRAIT
+  STORIES
+  CARROSSEL
+}
+
+enum PostStatus {
+  DRAFT
+  TEXTS_READY
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum PhotoStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id             String        @id @default(uuid())
+  email          String        @unique
+  passwordHash   String
+  name           String
+  role           Role          @default(USER)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  subscription   Subscription?
+  brandKit       BrandKit?
+  posts          Post[]
+  photos         ProfessionalPhoto[]
+
+  @@map("users")
+}
+
+model Plan {
+  id              String   @id @default(uuid())
+  name            String
+  slug            String   @unique
+  postsPerWeek    Int
+  photosPerMonth  Int
+  priceInCents    Int
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  subscriptions   Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                     String             @id @default(uuid())
+  userId                 String             @unique
+  planId                 String
+  status                 SubscriptionStatus @default(ACTIVE)
+  kiwifySubscriptionId   String?
+  kiwifyCustomerId       String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan   Plan @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model BrandKit {
+  id                  String     @id @default(uuid())
+  userId              String     @unique
+  professionalName    String?
+  profession          Profession?
+  specialty           String?
+  registrationCouncil String?
+  registrationNumber  String?
+  bio                 String?
+  areasOfExpertise    String[]   @default([])
+  brandPrimaryColor   String?
+  brandSecondaryColor String?
+  logoUrl             String?
+  logoWhiteUrl        String?
+  profilePhotoUrl     String?
+  instagramHandle     String?
+  preferredFont       String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("brand_kits")
+}
+
+model ProfessionalPhoto {
+  id                   String      @id @default(uuid())
+  userId               String
+  mode                 String      @default("GENERATE") // GENERATE | UPLOAD
+  originalPhotoUrls    String[]
+  generatedPhotoUrls   String[]    @default([])
+  loraUrl              String?
+  status               PhotoStatus @default(PENDING)
+  jobId                String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("professional_photos")
+}
+
+model Post {
+  id        String       @id @default(uuid())
+  userId    String
+  theme     String
+  category  PostCategory
+  format    PostFormat
+  headline     String?
+  subtitle     String?
+  caption      String?
+  userPhotoUrl String?
+  status    PostStatus   @default(DRAFT)
+  jobId     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  variations PostVariation[]
+
+  @@map("posts")
+}
+
+model PostVariation {
+  id          String   @id @default(uuid())
+  postId      String
+  imageUrl    String?
+  designStyle String?
+  isSelected  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("post_variations")
+}
+
+model KiwifyEvent {
+  id          String    @id @default(uuid())
+  eventType   String
+  payload     Json
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("kiwify_events")
+}

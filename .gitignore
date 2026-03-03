@@ -1,0 +1,6 @@
+Node modules e dist
+node_modules/
+dist/
+.env.local
+.env
+.next/
