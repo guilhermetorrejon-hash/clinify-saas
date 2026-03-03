@@ -11,8 +11,8 @@ RUN npm install
 # Copiar código
 COPY . .
 
-# Gerar Prisma Client (com verbose para debug)
-RUN npx -y @prisma/cli generate --schema=./prisma/schema.prisma
+# Gerar Prisma Client
+RUN npm run prisma:generate
 
 # Build TypeScript
 RUN npm run build
