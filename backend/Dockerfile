@@ -21,10 +21,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY prisma ./prisma
-COPY prisma.config.ts ./
-RUN npx prisma generate
+# Copy Prisma generated client from builder
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
+# Copy compiled app
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3001
