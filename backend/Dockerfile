@@ -1,20 +1,22 @@
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-COPY package*.json ./
-COPY prisma ./prisma
-RUN npm install
-RUN npm run build
-
 FROM node:20-alpine
 
 WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
 COPY package*.json ./
+RUN npm install
+
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+
+# Generate Prisma Client explicitly
+RUN echo "=== Generating Prisma Client ===" && npx prisma generate && echo "=== Prisma Client Generated ===" && ls -la node_modules/@prisma/client/ | head -10
+
+COPY . .
+
+RUN npm run build
 
 RUN npm ci --omit=dev
 
 EXPOSE 3001
+
 CMD ["npm", "run", "start:prod"]
