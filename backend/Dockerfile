@@ -1,4 +1,5 @@
-FROM node:20-alpine
+# Stage 1: Build
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -7,16 +8,25 @@ RUN npm install
 
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-
-# Generate Prisma Client explicitly
-RUN echo "=== Generating Prisma Client ===" && npx prisma generate && echo "=== Prisma Client Generated ===" && ls -la node_modules/@prisma/client/ | head -10
+RUN npx prisma generate
 
 COPY . .
-
 RUN npm run build
 
+# Stage 2: Production
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
 RUN npm ci --omit=dev
+
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+RUN npx prisma generate
+
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 3001
 
-CMD ["npm", "run", "start:prod"]
+CMD ["node", "dist/main"]
