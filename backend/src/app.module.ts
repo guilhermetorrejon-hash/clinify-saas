@@ -12,6 +12,7 @@ import { PlansModule } from './modules/plans/plans.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { KiwifyModule } from './modules/kiwify/kiwify.module';
 import { PhotosModule } from './modules/photos/photos.module';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { PhotosModule } from './modules/photos/photos.module';
     KiwifyModule,
     PhotosModule,
   ],
+  controllers: [AppController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
