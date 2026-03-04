@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsEnum, MaxLength } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsArray, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Profession } from '@prisma/client';
 
@@ -34,6 +34,12 @@ export class UpdateBrandKitDto {
   @IsString()
   @MaxLength(500)
   bio?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  areasOfExpertise?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()
