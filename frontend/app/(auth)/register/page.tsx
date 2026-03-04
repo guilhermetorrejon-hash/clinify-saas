@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import api from '@/lib/api'
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,11 +21,11 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { data } = await api.post('/auth/login', form)
+      const { data } = await api.post('/auth/register', form)
       localStorage.setItem('clinify_token', data.token)
       router.push('/dashboard')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao fazer login. Tente novamente.')
+      setError(err.response?.data?.message || 'Erro ao criar conta. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -43,16 +43,15 @@ export default function LoginPage() {
         </Link>
         <div>
           <blockquote className="text-2xl font-medium text-white leading-relaxed mb-6">
-            &ldquo;Em 3 minutos tenho meu post pronto, dentro das normas do CFM, com design
-            profissional.&rdquo;
+            &ldquo;Crie posts profissionais para suas redes sociais em minutos, respeitando as normas do seu conselho.&rdquo;
           </blockquote>
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-              <span className="text-sm font-bold text-white">AR</span>
+              <span className="text-sm font-bold text-white">CL</span>
             </div>
             <div>
-              <p className="font-semibold text-white">Dra. Ana Ribeiro</p>
-              <p className="text-blue-200 text-sm">Endocrinologista • CRM 45.123</p>
+              <p className="font-semibold text-white">Clinify</p>
+              <p className="text-blue-200 text-sm">IA para profissionais da saúde</p>
             </div>
           </div>
         </div>
@@ -70,8 +69,8 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Bem-vindo de volta</h1>
-            <p className="text-gray-500">Entre na sua conta para continuar</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Crie sua conta</h1>
+            <p className="text-gray-500">Comece a criar conteúdo profissional agora</p>
           </div>
 
           {error && (
@@ -81,6 +80,14 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <Input
+              label="Nome completo"
+              type="text"
+              placeholder="Dr. João Silva"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
             <Input
               label="E-mail"
               type="email"
@@ -93,10 +100,11 @@ export default function LoginPage() {
               <Input
                 label="Senha"
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Sua senha"
+                placeholder="Mínimo 8 caracteres"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 required
+                minLength={8}
               />
               <button
                 type="button"
@@ -108,14 +116,14 @@ export default function LoginPage() {
             </div>
 
             <Button type="submit" className="w-full" size="lg" loading={loading}>
-              Entrar
+              Criar conta
             </Button>
           </form>
 
           <p className="text-center text-sm text-gray-500 mt-6">
-            Não tem conta?{' '}
-            <Link href="/register" className="text-blue-600 font-semibold hover:underline">
-              Criar conta
+            Já tem conta?{' '}
+            <Link href="/login" className="text-blue-600 font-semibold hover:underline">
+              Fazer login
             </Link>
           </p>
         </div>
