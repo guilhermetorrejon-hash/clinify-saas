@@ -1,10 +1,18 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Public } from './common/decorators/public.decorator';
 import { AiService } from './modules/ai/ai.service';
+import { PrismaService } from './database/prisma.service';
+import { POST_GENERATION_QUEUE } from './queues/post-generation.processor';
 
 @Controller()
 export class AppController {
-  constructor(private readonly ai: AiService) {}
+  constructor(
+    private readonly ai: AiService,
+    private readonly prisma: PrismaService,
+    @InjectQueue(POST_GENERATION_QUEUE) private readonly postsQueue: Queue,
+  ) {}
 
   @Get()
   @Public()
@@ -55,6 +63,54 @@ export class AppController {
       checks.googleAI_image = { status: 'error', message: err.message, code: err.status || err.code };
     }
 
+    // Test BullMQ/Redis queue
+    try {
+      const waiting = await this.postsQueue.getWaitingCount();
+      const active = await this.postsQueue.getActiveCount();
+      const completed = await this.postsQueue.getCompletedCount();
+      const failed = await this.postsQueue.getFailedCount();
+      const failedJobs = await this.postsQueue.getFailed(0, 3);
+      checks.queue = {
+        status: 'ok',
+        waiting, active, completed, failed,
+        recentFailures: failedJobs.map(j => ({
+          id: j.id,
+          data: j.data,
+          failedReason: j.failedReason,
+          attemptsMade: j.attemptsMade,
+          finishedOn: j.finishedOn ? new Date(j.finishedOn).toISOString() : null,
+        })),
+      };
+    } catch (err: any) {
+      checks.queue = { status: 'error', message: err.message };
+    }
+
     return checks;
+  }
+
+  @Get('debug/post/:id')
+  @Public()
+  async debugPost(@Param('id') id: string) {
+    const post = await this.prisma.post.findUnique({
+      where: { id },
+      include: { variations: true },
+    });
+    if (!post) return { error: 'Post not found' };
+    return {
+      id: post.id,
+      status: post.status,
+      theme: post.theme,
+      headline: post.headline ? 'set' : 'empty',
+      subtitle: post.subtitle ? 'set' : 'empty',
+      caption: post.caption ? `set (${post.caption.length} chars)` : 'empty',
+      variations: post.variations.map(v => ({
+        id: v.id,
+        designStyle: v.designStyle,
+        hasImage: !!v.imageUrl,
+        imageUrl: v.imageUrl ? v.imageUrl.substring(0, 80) + '...' : null,
+      })),
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+    };
   }
 }
