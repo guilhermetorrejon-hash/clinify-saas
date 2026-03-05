@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import sharp from 'sharp';
 
 export interface LogoOverlayOptions {
   position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -10,20 +9,31 @@ export interface LogoOverlayOptions {
 @Injectable()
 export class LogoOverlayService {
   private readonly logger = new Logger(LogoOverlayService.name);
+  private sharpModule: any = null;
+  private sharpLoaded = false;
 
-  /**
-   * Sobrepõe a logo real sobre a imagem gerada pela IA.
-   * @param imageBase64 - Imagem base (base64 puro, sem prefixo data:)
-   * @param logoSource - Logo como data URL (data:image/...) ou URL HTTP
-   * @param options - Posição, padding e tamanho máximo
-   * @returns Base64 da imagem final (sem prefixo data:)
-   */
+  private async getSharp(): Promise<any> {
+    if (this.sharpLoaded) return this.sharpModule;
+    this.sharpLoaded = true;
+    try {
+      this.sharpModule = (await import('sharp')).default;
+      this.logger.log('Sharp carregado com sucesso');
+    } catch (err: any) {
+      this.logger.warn(`Sharp não disponível — logo overlay desabilitado: ${err.message}`);
+      this.sharpModule = null;
+    }
+    return this.sharpModule;
+  }
+
   async applyLogo(
     imageBase64: string,
     logoSource: string,
     options: LogoOverlayOptions = {},
   ): Promise<string> {
     const { position = 'top-left', padding = 30, maxWidth = 120 } = options;
+
+    const sharp = await this.getSharp();
+    if (!sharp) return imageBase64;
 
     try {
       const logoBuffer = await this.resolveLogoBuffer(logoSource);
@@ -37,7 +47,6 @@ export class LogoOverlayService {
       const imgWidth = imageMetadata.width || 1080;
       const imgHeight = imageMetadata.height || 1080;
 
-      // Redimensionar logo para maxWidth mantendo proporção
       const resizedLogo = await sharp(logoBuffer)
         .resize({ width: maxWidth, withoutEnlargement: true })
         .png()
@@ -47,7 +56,6 @@ export class LogoOverlayService {
       const logoW = logoMeta.width || maxWidth;
       const logoH = logoMeta.height || maxWidth;
 
-      // Calcular posição
       let left: number;
       let top: number;
       switch (position) {
@@ -63,7 +71,7 @@ export class LogoOverlayService {
           left = imgWidth - logoW - padding;
           top = imgHeight - logoH - padding;
           break;
-        default: // top-left
+        default:
           left = padding;
           top = padding;
       }
@@ -81,13 +89,11 @@ export class LogoOverlayService {
   }
 
   private async resolveLogoBuffer(logoSource: string): Promise<Buffer | null> {
-    // Data URL: data:image/png;base64,...
     const dataUrlMatch = logoSource.match(/^data:[^;]+;base64,(.+)$/);
     if (dataUrlMatch) {
       return Buffer.from(dataUrlMatch[1], 'base64');
     }
 
-    // URL HTTP/HTTPS
     if (logoSource.startsWith('http://') || logoSource.startsWith('https://')) {
       try {
         const response = await fetch(logoSource);

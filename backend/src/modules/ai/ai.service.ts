@@ -480,9 +480,8 @@ Gere headline, subtítulo e legenda. Responda APENAS com o JSON.`;
     subtitle: string;
     caption: string;
     userPhotoUrl?: string;
-    contextPhotoUrl?: string;
   }): Promise<{ base64: string; mimeType: string }> {
-    const { theme, category, format, designStyle, brandKit, headline, subtitle, userPhotoUrl, contextPhotoUrl } = params;
+    const { theme, category, format, designStyle, brandKit, headline, subtitle, userPhotoUrl } = params;
 
     const primaryColor = brandKit.brandPrimaryColor || '#0e82eb';
     const secondaryColor = brandKit.brandSecondaryColor || '#fbbf24';
@@ -828,40 +827,6 @@ OBRIGATÓRIO para esta variação:
         }
       } catch (err: any) {
         this.logger.warn(`[${designStyle}] Falha ao carregar foto do profissional: ${err?.message}`);
-      }
-    }
-
-    // Foto contextual (consultório, procedimento, etc.) — enviada para TODAS as variações
-    if (contextPhotoUrl) {
-      try {
-        let ctxBase64: string | undefined;
-        let ctxMime = 'image/jpeg';
-
-        const ctxMatch = contextPhotoUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (ctxMatch) {
-          ctxMime = ctxMatch[1];
-          ctxBase64 = ctxMatch[2];
-        } else {
-          const res = await fetch(contextPhotoUrl);
-          if (res.ok) {
-            const ct = res.headers.get('content-type');
-            if (ct) ctxMime = ct.split(';')[0];
-            ctxBase64 = Buffer.from(await res.arrayBuffer()).toString('base64');
-          }
-        }
-
-        if (ctxBase64) {
-          contentParts.push({ inlineData: { mimeType: ctxMime, data: ctxBase64 } });
-          contentParts.push({
-            text: `⚠️ FOTO CONTEXTUAL DO PROFISSIONAL:
-A imagem acima é uma foto enviada pelo profissional (pode ser consultório, procedimento, equipamento, etc.).
-INCORPORE esta foto de forma natural na arte — pode ser como fundo, elemento visual de apoio ou composição editorial.
-NÃO ignore esta foto. Ela deve aparecer na arte final de alguma forma.`,
-          });
-          this.logger.log(`[${designStyle}] Foto contextual carregada (${ctxMime})`);
-        }
-      } catch (err: any) {
-        this.logger.warn(`[${designStyle}] Falha ao carregar foto contextual: ${err?.message}`);
       }
     }
 
