@@ -14,6 +14,9 @@ export interface PostGenerationJob {
   userId: string;
 }
 
+// Máximo de imagens geradas simultaneamente (evita rate limit do Gemini)
+const PARALLEL_LIMIT = 3;
+
 @Processor(POST_GENERATION_QUEUE)
 export class PostGenerationProcessor extends WorkerHost {
   private readonly logger = new Logger(PostGenerationProcessor.name);
@@ -68,7 +71,6 @@ export class PostGenerationProcessor extends WorkerHost {
       await job.updateProgress(30);
 
       // Foto do profissional (retrato) — para variações fotográficas
-      // 'none' = usuário optou por não usar foto
       const skipPhoto = post.userPhotoUrl === 'none';
       let professionalPhotoUrl: string | undefined = (!skipPhoto && post.userPhotoUrl) || undefined;
 
@@ -94,65 +96,82 @@ export class PostGenerationProcessor extends WorkerHost {
       }
 
       const total = post.variations.length;
-      const progressStep = Math.floor(65 / total);
 
-      for (let i = 0; i < total; i++) {
-        const variation = post.variations[i];
-        const designStyle = variation.designStyle || 'fotografico';
-        const isCarrossel = designStyle.startsWith('carrossel_');
+      // Gerar imagens em paralelo (batches de PARALLEL_LIMIT)
+      for (let batchStart = 0; batchStart < total; batchStart += PARALLEL_LIMIT) {
+        const batch = post.variations.slice(batchStart, batchStart + PARALLEL_LIMIT);
 
-        this.logger.log(`[${postId}] Gerando ${isCarrossel ? 'slide' : 'variação'} ${i + 1}/${total} (${designStyle})...`);
+        const results = await Promise.allSettled(
+          batch.map(async (variation, batchIdx) => {
+            const i = batchStart + batchIdx;
+            const designStyle = variation.designStyle || 'fotografico';
+            const isCarrossel = designStyle.startsWith('carrossel_');
 
-        try {
-          // Foto do profissional: apenas para variações fotográficas e slides 1/5 foto
-          const isPhotoVariation = designStyle === 'fotografico'
-            || designStyle === 'carrossel_foto_1'
-            || designStyle === 'carrossel_foto_5';
+            this.logger.log(`[${postId}] Gerando ${isCarrossel ? 'slide' : 'variação'} ${i + 1}/${total} (${designStyle})...`);
 
-          let { base64, mimeType } = await this.ai.generatePostImage({
-            theme: post.theme,
-            category: post.category,
-            format: post.format,
-            designStyle,
-            brandKit: brandKit || {},
-            headline,
-            subtitle,
-            caption,
-            userPhotoUrl: isPhotoVariation ? professionalPhotoUrl : undefined,
-          });
+            const isPhotoVariation = designStyle === 'fotografico'
+              || designStyle === 'carrossel_foto_1'
+              || designStyle === 'carrossel_foto_5';
 
-          // Aplicar logo via overlay (Sharp) — logo fiel, sem reinterpretação da IA
-          if (brandKit?.logoUrl) {
-            const isDarkVariation = designStyle === 'grafico'
-              || designStyle === 'fotografico'
-              || /^carrossel_(foto|graf)_\d+$/.test(designStyle);
-
-            const logoSource = (isDarkVariation && brandKit.logoWhiteUrl)
-              ? brandKit.logoWhiteUrl
-              : brandKit.logoUrl;
-
-            base64 = await this.logoOverlay.applyLogo(base64, logoSource);
-          }
-
-          const imageUrl = await this.storage.uploadBase64Image(
-            base64,
-            mimeType,
-            `posts/${userId}/${postId}`,
-          );
-
-          await this.prisma.postVariation.update({
-            where: { id: variation.id },
-            data: {
-              imageUrl,
+            let { base64, mimeType } = await this.ai.generatePostImage({
+              theme: post.theme,
+              category: post.category,
+              format: post.format,
               designStyle,
-              isSelected: i === 0,
-            },
-          });
-        } catch (err: any) {
-          this.logger.error(`[${postId}] Falha na ${isCarrossel ? 'slide' : 'variação'} ${i + 1} (${designStyle}): ${err.message || err}`, err.stack);
-        }
+              brandKit: brandKit || {},
+              headline,
+              subtitle,
+              caption,
+              userPhotoUrl: isPhotoVariation ? professionalPhotoUrl : undefined,
+            });
 
-        await job.updateProgress(30 + (i + 1) * progressStep);
+            // Logo overlay
+            if (brandKit?.logoUrl) {
+              const isDarkVariation = designStyle === 'grafico'
+                || designStyle === 'fotografico'
+                || /^carrossel_(foto|graf)_\d+$/.test(designStyle);
+
+              const logoSource = (isDarkVariation && brandKit.logoWhiteUrl)
+                ? brandKit.logoWhiteUrl
+                : brandKit.logoUrl;
+
+              base64 = await this.logoOverlay.applyLogo(base64, logoSource);
+            }
+
+            const imageUrl = await this.storage.uploadBase64Image(
+              base64,
+              mimeType,
+              `posts/${userId}/${postId}`,
+            );
+
+            await this.prisma.postVariation.update({
+              where: { id: variation.id },
+              data: {
+                imageUrl,
+                designStyle,
+                isSelected: i === 0,
+              },
+            });
+
+            this.logger.log(`[${postId}] ${isCarrossel ? 'Slide' : 'Variação'} ${i + 1}/${total} pronta`);
+          }),
+        );
+
+        // Log falhas do batch
+        results.forEach((r, batchIdx) => {
+          if (r.status === 'rejected') {
+            const i = batchStart + batchIdx;
+            const v = batch[batchIdx];
+            this.logger.error(
+              `[${postId}] Falha na variação ${i + 1} (${v.designStyle}): ${r.reason?.message || r.reason}`,
+              r.reason?.stack,
+            );
+          }
+        });
+
+        // Progresso após cada batch
+        const completed = Math.min(batchStart + batch.length, total);
+        await job.updateProgress(30 + Math.round((completed / total) * 65));
       }
 
       await this.prisma.post.update({
