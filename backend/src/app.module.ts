@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { BullModule } from '@nestjs/bullmq';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { POST_GENERATION_QUEUE } from './queues/post-generation.processor';
 import { DatabaseModule } from './database/database.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { AiModule } from './modules/ai/ai.module';
@@ -47,7 +45,6 @@ import { AppController } from './app.controller';
     PostsModule,
     KiwifyModule,
     PhotosModule,
-    BullModule.registerQueue({ name: POST_GENERATION_QUEUE }),
   ],
   controllers: [AppController],
   providers: [

@@ -33,7 +33,7 @@ interface Post {
 }
 
 const POLLING_INTERVAL = 5000
-const MAX_POLLS = 300 // 300 × 5s = 25 min (cobre carrossel com 15 imagens)
+const MAX_POLLS = 300 // 300 × 5s = 25 min
 
 const styleLabels: Record<string, string> = {
   fotografico: 'Fotográfico',
@@ -45,14 +45,12 @@ const styleLabels: Record<string, string> = {
   elegante: 'Elegante',
 }
 
-const carrosselSeriesLabels: Record<string, string> = {
-  foto: 'Fotográfico',
-  tipo: 'Tipográfico',
-  graf: 'Gráfico',
-}
-
-function getCarrosselStyle(designStyle: string): string | null {
-  return designStyle.match(/^carrossel_(foto|tipo|graf)_\d+$/)?.[1] ?? null
+const slideLabels: Record<number, string> = {
+  1: 'Capa',
+  2: 'Conteúdo 1',
+  3: 'Conteúdo 2',
+  4: 'Conteúdo 3',
+  5: 'CTA',
 }
 
 function getCarrosselSlideNum(designStyle: string): number | null {
@@ -275,9 +273,8 @@ export default function PostResultPage() {
       {/* Gerando imagens */}
       {isGenerating && (() => {
         const isCarrossel = post?.format === 'CARROSSEL'
-        const totalImages = isCarrossel ? 15 : 3
-        const timeLabel = isCarrossel ? '10-20 minutos' : '2-3 minutos'
-        // Progresso REAL baseado em imagens já geradas (polling retorna variations com imageUrl)
+        const totalImages = isCarrossel ? 5 : 3
+        const timeLabel = isCarrossel ? '3-5 minutos' : '2-3 minutos'
         const completedImages = post?.variations.filter((v) => v.imageUrl).length || 0
         const progressPct = Math.min(Math.round((completedImages / totalImages) * 95), 95) || 5
         return (
@@ -290,7 +287,7 @@ export default function PostResultPage() {
                 <p className="text-lg font-semibold text-gray-900">Gerando as artes</p>
                 <p className="text-gray-500 text-sm mt-1">
                   {isCarrossel
-                    ? `Criando 3 estilos × 5 slides = 15 imagens com IA. Isso leva cerca de ${timeLabel}.`
+                    ? `Criando 5 slides do carrossel com IA. Isso leva cerca de ${timeLabel}.`
                     : `Criando 3 variações de imagem com os textos aprovados. Isso leva cerca de ${timeLabel}.`}
                 </p>
                 <p className="text-blue-600 text-xs mt-2 font-medium">
@@ -503,97 +500,54 @@ export default function PostResultPage() {
         <div className="space-y-8">
           {/* Variações / Slides */}
           {post.format === 'CARROSSEL' ? (() => {
-            // Agrupar por série (foto / tipo / graf)
-            const series: Record<string, typeof post.variations> = {}
-            for (const v of post.variations) {
-              const s = getCarrosselStyle(v.designStyle ?? '')
-              if (s) {
-                if (!series[s]) series[s] = []
-                series[s].push(v)
-              }
-            }
-            const seriesKeys = Object.keys(series)
-            const [activeSeries, setActiveSeries] = [selectedVariation, setSelectedVariation]
-
-            // Usa o selectedVariation como "série ativa" (armazena o estilo ex: 'foto')
-            const currentSeries = (activeSeries && seriesKeys.includes(activeSeries))
-              ? activeSeries
-              : seriesKeys[0] ?? ''
+            const slides = [...post.variations].sort((a, b) =>
+              (getCarrosselSlideNum(a.designStyle ?? '') ?? 0) - (getCarrosselSlideNum(b.designStyle ?? '') ?? 0)
+            )
 
             return (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900">Escolha o estilo do carrossel</h2>
-                  <span className="text-xs text-gray-400">3 estilos × 5 slides</span>
+                  <h2 className="text-lg font-semibold text-gray-900">Slides do carrossel</h2>
+                  <span className="text-xs text-gray-400">{slides.length} slides</span>
                 </div>
 
-                {seriesKeys.map((seriesKey) => {
-                  const slides = [...(series[seriesKey] ?? [])].sort((a, b) => {
-                    return (getCarrosselSlideNum(a.designStyle ?? '') ?? 0) - (getCarrosselSlideNum(b.designStyle ?? '') ?? 0)
-                  })
-                  const isActive = currentSeries === seriesKey
-
-                  return (
-                    <div
-                      key={seriesKey}
-                      className={`rounded-2xl border-2 p-4 transition-all duration-150 cursor-pointer ${
-                        isActive ? 'border-blue-600 bg-blue-50/40' : 'border-gray-100 hover:border-gray-300'
-                      }`}
-                      onClick={() => setActiveSeries(seriesKey)}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
-                            isActive ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
-                          }`}>
-                            {isActive && <Check className="h-3 w-3 text-white" />}
+                <div className="grid grid-cols-5 gap-3">
+                  {slides.map((slide) => {
+                    const slideNum = getCarrosselSlideNum(slide.designStyle ?? '') ?? 0
+                    const label = slideLabels[slideNum] || `Slide ${slideNum}`
+                    return (
+                      <div key={slide.id} className="space-y-2">
+                        <div className="relative rounded-xl overflow-hidden border border-gray-200">
+                          {slide.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={slide.imageUrl}
+                              alt={label}
+                              className={`w-full ${aspectClass} object-cover`}
+                            />
+                          ) : (
+                            <div className={`w-full ${aspectClass} bg-gray-100 flex items-center justify-center`}>
+                              <p className="text-gray-400 text-xs">...</p>
+                            </div>
+                          )}
+                          <div className="absolute top-1.5 left-1.5 h-5 w-5 rounded-full bg-black/60 flex items-center justify-center">
+                            <span className="text-white text-[10px] font-bold">{slideNum}</span>
                           </div>
-                          <span className="font-semibold text-sm text-gray-900">
-                            {carrosselSeriesLabels[seriesKey] ?? seriesKey}
-                          </span>
                         </div>
-                        {isActive && (
-                          <span className="text-xs text-blue-600 font-medium bg-blue-100 px-2 py-0.5 rounded-full">
-                            Selecionado
-                          </span>
+                        <p className="text-xs text-center text-gray-500 font-medium">{label}</p>
+                        {slide.imageUrl && (
+                          <button
+                            className="flex items-center justify-center gap-0.5 text-[10px] text-blue-500 hover:underline w-full"
+                            onClick={() => downloadImage(slide.imageUrl!, `carrossel-slide-${slideNum}.jpg`)}
+                          >
+                            <Download className="h-2.5 w-2.5" />
+                            Baixar
+                          </button>
                         )}
                       </div>
-
-                      <div className="grid grid-cols-5 gap-2">
-                        {slides.map((slide, idx) => (
-                          <div key={slide.id} className="space-y-1">
-                            <div className="relative rounded-lg overflow-hidden border border-gray-200/80">
-                              {slide.imageUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={slide.imageUrl}
-                                  alt={`Slide ${idx + 1}`}
-                                  className={`w-full ${aspectClass} object-cover`}
-                                />
-                              ) : (
-                                <div className={`w-full ${aspectClass} bg-gray-100 flex items-center justify-center`}>
-                                  <p className="text-gray-400 text-xs">...</p>
-                                </div>
-                              )}
-                              <div className="absolute top-1.5 left-1.5 h-5 w-5 rounded-full bg-black/60 flex items-center justify-center">
-                                <span className="text-white text-[10px] font-bold">{idx + 1}</span>
-                              </div>
-                            </div>
-                            {slide.imageUrl && (
-                              <button
-                                className="flex items-center justify-center gap-0.5 text-[10px] text-blue-500 hover:underline w-full"
-                                onClick={(e) => { e.stopPropagation(); downloadImage(slide.imageUrl!, `carrossel-${seriesKey}-slide-${idx + 1}.jpg`) }}
-                              >
-                                <Download className="h-2.5 w-2.5" />
-                                Baixar
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             )
           })() : (
@@ -724,20 +678,18 @@ export default function PostResultPage() {
               <Button
                 className="flex-1"
                 onClick={async () => {
-                  const activeStyle = selectedVariation && ['foto', 'tipo', 'graf'].includes(selectedVariation)
-                    ? selectedVariation
-                    : 'foto'
-                  const slides = post.variations
-                    .filter((v) => getCarrosselStyle(v.designStyle ?? '') === activeStyle && v.imageUrl)
+                  const slides = [...post.variations]
+                    .filter((v) => v.imageUrl)
                     .sort((a, b) => (getCarrosselSlideNum(a.designStyle ?? '') ?? 0) - (getCarrosselSlideNum(b.designStyle ?? '') ?? 0))
                   for (let i = 0; i < slides.length; i++) {
-                    await downloadImage(slides[i].imageUrl!, `carrossel-${activeStyle}-slide-${i + 1}.jpg`)
+                    const num = getCarrosselSlideNum(slides[i].designStyle ?? '') ?? (i + 1)
+                    await downloadImage(slides[i].imageUrl!, `carrossel-slide-${num}.jpg`)
                     await new Promise((r) => setTimeout(r, 400))
                   }
                 }}
               >
                 <Download className="h-4 w-4" />
-                Baixar 5 slides
+                Baixar {post.variations.filter((v) => v.imageUrl).length} slides
               </Button>
             ) : selectedVariation ? (
               <Button

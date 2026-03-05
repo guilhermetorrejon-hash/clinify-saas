@@ -51,26 +51,22 @@ export class PostsService {
         format: dto.format,
         status: 'DRAFT',
         userPhotoUrl: dto.userPhotoUrl || null,
+        contextPhotoUrl: dto.contextPhotoUrl || null,
         variations: {
           createMany: {
             data: dto.format === 'CARROSSEL'
-              ? [
-                  { designStyle: 'carrossel_foto_1' },
-                  { designStyle: 'carrossel_foto_2' },
-                  { designStyle: 'carrossel_foto_3' },
-                  { designStyle: 'carrossel_foto_4' },
-                  { designStyle: 'carrossel_foto_5' },
-                  { designStyle: 'carrossel_tipo_1' },
-                  { designStyle: 'carrossel_tipo_2' },
-                  { designStyle: 'carrossel_tipo_3' },
-                  { designStyle: 'carrossel_tipo_4' },
-                  { designStyle: 'carrossel_tipo_5' },
-                  { designStyle: 'carrossel_graf_1' },
-                  { designStyle: 'carrossel_graf_2' },
-                  { designStyle: 'carrossel_graf_3' },
-                  { designStyle: 'carrossel_graf_4' },
-                  { designStyle: 'carrossel_graf_5' },
-                ]
+              ? (() => {
+                  // Carrossel: 1 estilo × 5 slides (user escolhe o estilo)
+                  const styleMap: Record<string, string> = {
+                    fotografico: 'foto',
+                    tipografico: 'tipo',
+                    grafico: 'graf',
+                  };
+                  const prefix = styleMap[dto.carouselStyle || 'fotografico'] || 'foto';
+                  return [1, 2, 3, 4, 5].map((n) => ({
+                    designStyle: `carrossel_${prefix}_${n}`,
+                  }));
+                })()
               : [
                   { designStyle: 'fotografico' },
                   { designStyle: 'tipografico' },
@@ -82,11 +78,23 @@ export class PostsService {
       include: { variations: true },
     });
 
-    // Buscar brand kit do profissional para geração de textos
+    // Gerar textos em background — retorna DRAFT imediatamente,
+    // frontend faz polling até TEXTS_READY
+    this.generateTextsAsync(post.id, userId, dto).catch((err) => {
+      this.logger.error(`[post ${post.id}] Geração de textos em background falhou: ${err.message || err}`);
+    });
+
+    return post;
+  }
+
+  private async generateTextsAsync(
+    postId: string,
+    userId: string,
+    dto: CreatePostDto,
+  ) {
     const brandKit = await this.prisma.brandKit.findUnique({ where: { userId } });
     const profession: Profession = brandKit?.profession || 'OUTRO';
 
-    // Tentar gerar textos com até 2 tentativas antes de avançar com campos vazios
     let texts: { headline: string; subtitle: string; caption: string } | null = null;
     for (let attempt = 1; attempt <= 2 && !texts; attempt++) {
       try {
@@ -98,21 +106,20 @@ export class PostsService {
           brandKit: brandKit || {},
         });
       } catch (err: any) {
-        this.logger.error(`[post ${post.id}] Tentativa ${attempt}/2 de geração de textos falhou: ${err.message || err}`, err.stack);
+        this.logger.error(`[post ${postId}] Tentativa ${attempt}/2 de geração de textos falhou: ${err.message || err}`, err.stack);
       }
     }
 
-    // Sempre avança para TEXTS_READY — profissional revisa antes de gerar imagens
-    return this.prisma.post.update({
-      where: { id: post.id },
+    await this.prisma.post.update({
+      where: { id: postId },
       data: {
         headline: texts?.headline || null,
         subtitle: texts?.subtitle || null,
         caption: texts?.caption || null,
         status: 'TEXTS_READY',
       },
-      include: { variations: true },
     });
+    this.logger.log(`[post ${postId}] Textos gerados em background → TEXTS_READY`);
   }
 
   async regenerateTexts(userId: string, postId: string) {

@@ -438,6 +438,19 @@ export default function PerfilPage() {
         </CardContent>
       </Card>
 
+      {/* Aviso: logo principal sem logo branca */}
+      {logoPreview && !logoWhitePreview && (
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-3">
+          <span className="text-lg shrink-0">💡</span>
+          <div>
+            <p className="font-medium">Recomendado: envie uma versão branca da sua logo</p>
+            <p className="text-amber-700 mt-0.5">
+              Artes com fundo escuro ficam melhores com uma logo branca/clara. Sem ela, usamos sua logo original em todos os fundos.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Logo versão clara (opcional) */}
       <Card>
         <CardHeader>

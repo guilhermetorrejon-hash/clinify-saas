@@ -480,8 +480,9 @@ Gere headline, subtítulo e legenda. Responda APENAS com o JSON.`;
     subtitle: string;
     caption: string;
     userPhotoUrl?: string;
+    contextPhotoUrl?: string;
   }): Promise<{ base64: string; mimeType: string }> {
-    const { theme, category, format, designStyle, brandKit, headline, subtitle, userPhotoUrl } = params;
+    const { theme, category, format, designStyle, brandKit, headline, subtitle, userPhotoUrl, contextPhotoUrl } = params;
 
     const primaryColor = brandKit.brandPrimaryColor || '#0e82eb';
     const secondaryColor = brandKit.brandSecondaryColor || '#fbbf24';
@@ -732,8 +733,9 @@ REGRAS TÉCNICAS ABSOLUTAS (violação = arte rejeitada):
 5. PROIBIDO sombra de texto (text-shadow/drop-shadow) em qualquer variação. Legibilidade garantida por: (a) posicionar o texto em área da foto com contraste natural, (b) overlay/gradiente suave APENAS na região onde o texto aparece, ou (c) fundo sólido atrás do bloco de texto. Texto limpo, sem efeitos.${isCarrosselSlide ? `
 6. SLIDE ÚNICO OBRIGATÓRIO: Você está gerando o SLIDE ${carrosselSlideNum} de 5 de um carrossel do Instagram. Gere APENAS UMA imagem independente e completa. PROIBIDO gerar collage, grade, mosaico, painel com múltiplos frames, ou montagem que mostre outros slides dentro da imagem. Cada slide do carrossel é gerado e publicado separadamente.` : ''}
 
-DIMENSÕES E FORMATO:
+DIMENSÕES E FORMATO — REGRA ABSOLUTA:
 ${layoutInstructions[format]}
+⚠️ A arte DEVE preencher 100% do canvas no formato especificado. PROIBIDO gerar em outro formato ou deixar áreas vazias/barras pretas. Se o formato é 9:16 (Stories), a imagem INTEIRA deve ser 9:16. Se é 1:1, deve ser quadrada. Se é 4:5, deve ser retrato 4:5.
 
 ${categoryVisualGuide[category]}
 
@@ -829,63 +831,47 @@ OBRIGATÓRIO para esta variação:
       }
     }
 
-    // Logo do profissional
-    // Fundos ESCUROS (usam logo branca/clara se disponível):
-    // - fotografico: sempre fundo escuro
-    // - grafico: sempre fundo em cor primária (escura)
-    // - carrossel_foto_*: fundo fotográfico com overlay escuro
-    // - carrossel_graf_*: fundo em cor primária (escura)
-    // Fundos CLAROS (usam logo original):
-    // - tipografico: fundo off-white sólido
-    // - carrossel_tipo_*: fundo off-white sólido
-    const isDarkVariation = designStyle === 'grafico'
-      || designStyle === 'fotografico'
-      || /^carrossel_(foto|graf)_\d+$/.test(designStyle);
+    // Foto contextual (consultório, procedimento, etc.) — enviada para TODAS as variações
+    if (contextPhotoUrl) {
+      try {
+        let ctxBase64: string | undefined;
+        let ctxMime = 'image/jpeg';
 
-    const logoUrl = (isDarkVariation && brandKit.logoWhiteUrl) ? brandKit.logoWhiteUrl : brandKit.logoUrl;
+        const ctxMatch = contextPhotoUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (ctxMatch) {
+          ctxMime = ctxMatch[1];
+          ctxBase64 = ctxMatch[2];
+        } else {
+          const res = await fetch(contextPhotoUrl);
+          if (res.ok) {
+            const ct = res.headers.get('content-type');
+            if (ct) ctxMime = ct.split(';')[0];
+            ctxBase64 = Buffer.from(await res.arrayBuffer()).toString('base64');
+          }
+        }
 
-    if (logoUrl && logoUrl.startsWith('data:')) {
-      const base64Match = logoUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (base64Match) {
-        contentParts.push({
-          inlineData: { mimeType: base64Match[1], data: base64Match[2] },
-        });
-
-        const isWhiteVersion = isDarkVariation && brandKit.logoWhiteUrl;
-        const logoInstruction = isWhiteVersion
-          ? `⚠️ LOGO CRÍTICA — FUNDO ESCURO — A imagem LOGO acima é a LOGO DO PROFISSIONAL (versão clara/branca).
-REGRA ABSOLUTA DE CONTRASTE:
-- Fundo da arte = ESCURO → Logo BRANCA/CLARA é OBRIGATÓRIA
-- A logo acima é branca/clara ESPECIFICAMENTE para este fundo
-POSICIONAMENTO:
-- Posicione no canto superior esquerdo
-- Tamanho: discreto mas visível (legível mesmo em canto pequeno)
-PROIBIÇÕES:
-- NÃO redesenhe, NÃO recrie, NÃO mude cores, NÃO crie logo similar
-- NÃO inverta cores (não use escuro em fundo escuro)
-- USE A IMAGEM FORNECIDA EXATAMENTE COMO ESTÁ`
-          : `⚠️ LOGO CRÍTICA — FUNDO CLARO — A imagem LOGO acima é a LOGO DO PROFISSIONAL.
-REGRA ABSOLUTA DE CONTRASTE:
-- Fundo da arte = CLARO/BRANCO → Logo DEVE ser ESCURA ou COLORIDA para legibilidade
-- Se a logo fornecida é colorida/escura: USE EXATAMENTE como está → contraste garantido
-- Se a logo fornecida é branca/clara: NÃO use (zero contraste em fundo claro) → omita a logo desta arte
-POSICIONAMENTO (se usar):
-- Posicione no canto superior esquerdo
-- Tamanho: discreto mas visível
-- Se logo tiver fundo branco sólido: use apenas elementos gráficos, remova o fundo branco
-PROIBIÇÕES:
-- NÃO redesenhe, NÃO recrie, NÃO inverta cores, NÃO crie logo similar
-- NÃO tente "colorir" ou escurecer a logo — USE EXATAMENTE como está ou omita
-- NUNCA use logo clara/branca em fundo claro (zero contraste = ilegível)`;
-
-        contentParts.push({ text: logoInstruction });
+        if (ctxBase64) {
+          contentParts.push({ inlineData: { mimeType: ctxMime, data: ctxBase64 } });
+          contentParts.push({
+            text: `⚠️ FOTO CONTEXTUAL DO PROFISSIONAL:
+A imagem acima é uma foto enviada pelo profissional (pode ser consultório, procedimento, equipamento, etc.).
+INCORPORE esta foto de forma natural na arte — pode ser como fundo, elemento visual de apoio ou composição editorial.
+NÃO ignore esta foto. Ela deve aparecer na arte final de alguma forma.`,
+          });
+          this.logger.log(`[${designStyle}] Foto contextual carregada (${ctxMime})`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`[${designStyle}] Falha ao carregar foto contextual: ${err?.message}`);
       }
-    } else if (logoUrl) {
-      // Fallback: logo é uma URL (não data URL) — instrução mais clara
+    }
+
+    // Logo: NÃO enviar para a IA — será aplicada via overlay com Sharp no pós-processamento
+    // Instrução para a IA deixar o canto limpo para o overlay
+    if (brandKit.logoUrl || brandKit.logoWhiteUrl) {
       contentParts.push({
-        text: `⚠️ IDENTIDADE DE MARCA: O profissional "${professionalName}" tem uma logo própria.
-OBRIGATÓRIO: Incluir a identidade visual de forma consistente com o nome e especialidade.
-Se houver logo disponível em URL, use-a no canto superior esquerdo discretamente.`,
+        text: `⚠️ LOGO: NÃO inclua logo, logotipo, marca d'água ou qualquer símbolo de marca na arte.
+Deixe o canto superior esquerdo LIMPO e sem elementos visuais (sem texto, sem ícone).
+A logo será adicionada automaticamente em pós-processamento.`,
       });
     }
 

@@ -2,6 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { AiService } from '../modules/ai/ai.service';
+import { LogoOverlayService } from '../modules/ai/logo-overlay.service';
 import { StorageService } from '../modules/storage/storage.service';
 import { PrismaService } from '../database/prisma.service';
 import { BrandKit, Profession } from '@prisma/client';
@@ -19,6 +20,7 @@ export class PostGenerationProcessor extends WorkerHost {
 
   constructor(
     private readonly ai: AiService,
+    private readonly logoOverlay: LogoOverlayService,
     private readonly storage: StorageService,
     private readonly prisma: PrismaService,
   ) {
@@ -29,14 +31,12 @@ export class PostGenerationProcessor extends WorkerHost {
     const { postId, userId } = job.data;
     this.logger.log(`Processando geração de post: ${postId}`);
 
-    // Marcar como gerando
     await this.prisma.post.update({
       where: { id: postId },
       data: { status: 'GENERATING' },
     });
 
     try {
-      // Buscar dados do post e perfil do profissional
       const [post, brandKit] = await Promise.all([
         this.prisma.post.findUnique({
           where: { id: postId },
@@ -49,12 +49,10 @@ export class PostGenerationProcessor extends WorkerHost {
 
       const profession: Profession = (brandKit?.profession as Profession) || 'OUTRO';
 
-      // Usar textos já aprovados pelo profissional (gerados em POST /posts)
       const headline = (post as any).headline || '';
       const subtitle = (post as any).subtitle || '';
       let caption = post.caption || '';
 
-      // Se não houver legenda (fallback por erro na geração de textos), gerar agora
       if (!caption) {
         await job.updateProgress(10);
         this.logger.log(`[${postId}] Gerando legenda com Claude (fallback)...`);
@@ -69,8 +67,7 @@ export class PostGenerationProcessor extends WorkerHost {
 
       await job.updateProgress(30);
 
-      // Buscar foto do profissional para usar na variação fotográfica
-      // Prioridade: 1) foto escolhida no post  2) enxoval Fotos Pro  3) foto de perfil do brand kit
+      // Foto do profissional (retrato) — para variações fotográficas
       let professionalPhotoUrl: string | undefined = post.userPhotoUrl || undefined;
 
       if (!professionalPhotoUrl) {
@@ -90,9 +87,11 @@ export class PostGenerationProcessor extends WorkerHost {
         this.logger.log(`[${postId}] Usando foto de perfil do brand kit`);
       }
 
-      // Gerar variações/slides — usar designStyle salvo no banco
+      // Foto contextual (consultório, procedimento) — enviada para TODAS as variações
+      const contextPhotoUrl: string | undefined = (post as any).contextPhotoUrl || undefined;
+
       const total = post.variations.length;
-      const progressStep = Math.floor(65 / total); // 30→95% dividido pelo total de slides
+      const progressStep = Math.floor(65 / total);
 
       for (let i = 0; i < total; i++) {
         const variation = post.variations[i];
@@ -102,7 +101,12 @@ export class PostGenerationProcessor extends WorkerHost {
         this.logger.log(`[${postId}] Gerando ${isCarrossel ? 'slide' : 'variação'} ${i + 1}/${total} (${designStyle})...`);
 
         try {
-          const { base64, mimeType } = await this.ai.generatePostImage({
+          // Foto do profissional: apenas para variações fotográficas e slides 1/5 foto
+          const isPhotoVariation = designStyle === 'fotografico'
+            || designStyle === 'carrossel_foto_1'
+            || designStyle === 'carrossel_foto_5';
+
+          let { base64, mimeType } = await this.ai.generatePostImage({
             theme: post.theme,
             category: post.category,
             format: post.format,
@@ -111,13 +115,22 @@ export class PostGenerationProcessor extends WorkerHost {
             headline,
             subtitle,
             caption,
-            // Foto do profissional: variação fotográfica e slides 1+5 da série fotográfica do carrossel
-            userPhotoUrl: (
-              designStyle === 'fotografico' ||
-              designStyle === 'carrossel_foto_1' ||
-              designStyle === 'carrossel_foto_5'
-            ) ? professionalPhotoUrl : undefined,
+            userPhotoUrl: isPhotoVariation ? professionalPhotoUrl : undefined,
+            contextPhotoUrl,
           });
+
+          // Aplicar logo via overlay (Sharp) — logo fiel, sem reinterpretação da IA
+          if (brandKit?.logoUrl) {
+            const isDarkVariation = designStyle === 'grafico'
+              || designStyle === 'fotografico'
+              || /^carrossel_(foto|graf)_\d+$/.test(designStyle);
+
+            const logoSource = (isDarkVariation && brandKit.logoWhiteUrl)
+              ? brandKit.logoWhiteUrl
+              : brandKit.logoUrl;
+
+            base64 = await this.logoOverlay.applyLogo(base64, logoSource);
+          }
 
           const imageUrl = await this.storage.uploadBase64Image(
             base64,
@@ -130,7 +143,7 @@ export class PostGenerationProcessor extends WorkerHost {
             data: {
               imageUrl,
               designStyle,
-              isSelected: i === 0, // slide 1 ou variação fotográfica selecionada por padrão
+              isSelected: i === 0,
             },
           });
         } catch (err: any) {
@@ -140,7 +153,6 @@ export class PostGenerationProcessor extends WorkerHost {
         await job.updateProgress(30 + (i + 1) * progressStep);
       }
 
-      // Marcar como concluído
       await this.prisma.post.update({
         where: { id: postId },
         data: { status: 'COMPLETED' },

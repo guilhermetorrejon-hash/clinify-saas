@@ -20,5 +20,15 @@ export class CreatePostDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  userPhotoUrl?: string; // data URL (base64) de foto enviada pelo profissional
+  userPhotoUrl?: string; // foto do profissional (retrato)
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contextPhotoUrl?: string; // foto contextual (consultório, procedimento, etc.)
+
+  @ApiPropertyOptional({ enum: ['fotografico', 'tipografico', 'grafico'] })
+  @IsOptional()
+  @IsString()
+  carouselStyle?: 'fotografico' | 'tipografico' | 'grafico';
 }

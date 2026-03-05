@@ -159,7 +159,8 @@ model Post {
   headline     String?
   subtitle     String?
   caption      String?
-  userPhotoUrl String?
+  userPhotoUrl    String?
+  contextPhotoUrl String?
   status    PostStatus   @default(DRAFT)
   jobId     String?
   createdAt DateTime     @default(now())
