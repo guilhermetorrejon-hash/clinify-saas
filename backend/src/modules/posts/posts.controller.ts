@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -26,6 +27,7 @@ export class PostsController {
     return this.postsService.create(user.id, dto);
   }
 
+  @SkipThrottle()
   @Get()
   findAll(@CurrentUser() user: any) {
     return this.postsService.findAll(user.id);
@@ -33,6 +35,7 @@ export class PostsController {
 
   /** Proxy público para download de imagens do R2 — evita bloqueio CORS no browser */
   /** DEVE ficar antes de @Get(':id') para não ser capturado como parâmetro */
+  @SkipThrottle()
   @Public()
   @Get('download-proxy')
   async downloadProxy(
@@ -92,6 +95,7 @@ export class PostsController {
     }
   }
 
+  @SkipThrottle()
   @Get(':id')
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.postsService.findOne(user.id, id);

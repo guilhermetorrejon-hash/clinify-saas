@@ -91,7 +91,8 @@ export default function PostResultPage() {
       const selected = data.variations.find((v) => v.isSelected)
       if (selected) setSelectedVariation(selected.id)
       return data.status
-    } catch {
+    } catch (err: any) {
+      console.warn('[polling] Erro ao buscar post:', err?.response?.status || err?.message)
       return null // null = erro de rede, continuar polling
     }
   }, [id])
