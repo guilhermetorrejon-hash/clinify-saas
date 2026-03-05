@@ -74,8 +74,6 @@ export default function PostResultPage() {
   const [selectedVariation, setSelectedVariation] = useState<string | null>(null)
   const [captionCopied, setCaptionCopied] = useState(false)
   const [selectingVariation, setSelectingVariation] = useState(false)
-  const [pollCount, setPollCount] = useState(0)
-  const [pollTrigger, setPollTrigger] = useState(0)
   const [generatingImages, setGeneratingImages] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
@@ -86,35 +84,47 @@ export default function PostResultPage() {
   const [captionDraft, setCaptionDraft] = useState('')
   const [savingTexts, setSavingTexts] = useState(false)
 
-  const fetchPost = useCallback(async () => {
+  const fetchPost = useCallback(async (): Promise<PostStatus | null> => {
     try {
-      const { data } = await api.get<Post>(`/posts/${id}`)
+      const { data } = await api.get<Post>(`/posts/${id}`, {
+        params: { _t: Date.now() }, // cache busting
+      })
       setPost(data)
       const selected = data.variations.find((v) => v.isSelected)
       if (selected) setSelectedVariation(selected.id)
       return data.status
     } catch {
-      return 'FAILED' as PostStatus
+      return null // null = erro de rede, continuar polling
     }
   }, [id])
 
+  // Fetch inicial + detectar se já está gerando (ex: reload da página)
   useEffect(() => {
     if (!id) return
-    fetchPost()
+    fetchPost().then((status) => {
+      if (status === 'DRAFT' || status === 'GENERATING') {
+        setGeneratingImages(true)
+      }
+    })
+  }, [id, fetchPost])
+
+  // Polling ativo apenas durante geração (DRAFT→TEXTS_READY ou GENERATING→COMPLETED)
+  useEffect(() => {
+    if (!generatingImages) return
+    let polls = 0
     const interval = setInterval(async () => {
-      setPollCount((prev) => {
-        if (prev >= MAX_POLLS) { clearInterval(interval); return prev }
-        return prev + 1
-      })
+      polls++
+      if (polls >= MAX_POLLS) { clearInterval(interval); return }
       const status = await fetchPost()
+      // Parar polling apenas em status definitivos
       if (status === 'COMPLETED' || status === 'FAILED' || status === 'TEXTS_READY') {
         clearInterval(interval)
+        setGeneratingImages(false)
       }
+      // null = erro de rede → continuar polling (não parar!)
     }, POLLING_INTERVAL)
     return () => clearInterval(interval)
-    // pollTrigger reinicia o intervalo quando o usuário clica em "Gerar artes"
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, fetchPost, pollTrigger])
+  }, [generatingImages, fetchPost])
 
   async function handleSelectVariation(variationId: string) {
     if (!post || selectingVariation) return
@@ -177,8 +187,7 @@ export default function PostResultPage() {
     try {
       await api.post(`/posts/${post.id}/generate-images`)
       setPost((prev) => prev ? { ...prev, status: 'GENERATING' } : null)
-      setPollCount(0)
-      setPollTrigger((prev) => prev + 1) // reinicia o polling
+      // generatingImages já é true → useEffect de polling já está rodando
     } catch {
       setGeneratingImages(false)
     }
@@ -270,7 +279,7 @@ export default function PostResultPage() {
         const timeLabel = isCarrossel ? '10-20 minutos' : '2-3 minutos'
         // Progresso REAL baseado em imagens já geradas (polling retorna variations com imageUrl)
         const completedImages = post?.variations.filter((v) => v.imageUrl).length || 0
-        const progressPct = Math.min(Math.round((completedImages / totalImages) * 95), 95) || (pollCount > 0 ? 5 : 2)
+        const progressPct = Math.min(Math.round((completedImages / totalImages) * 95), 95) || 5
         return (
           <Card>
             <CardContent className="p-12 flex flex-col items-center justify-center gap-6">
