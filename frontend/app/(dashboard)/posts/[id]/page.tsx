@@ -267,12 +267,10 @@ export default function PostResultPage() {
       {isGenerating && (() => {
         const isCarrossel = post?.format === 'CARROSSEL'
         const totalImages = isCarrossel ? 15 : 3
-        const estimatedSeconds = isCarrossel ? 900 : 150 // 15min ou 2.5min
-        const elapsedSeconds = pollCount * (POLLING_INTERVAL / 1000)
-        const progressPct = Math.min(Math.round((elapsedSeconds / estimatedSeconds) * 95), 95)
         const timeLabel = isCarrossel ? '10-20 minutos' : '2-3 minutos'
-        // Slide atual estimado (cada imagem ≈ estimatedSeconds/totalImages s)
-        const currentSlide = Math.min(Math.floor(elapsedSeconds / (estimatedSeconds / totalImages)) + 1, totalImages)
+        // Progresso REAL baseado em imagens já geradas (polling retorna variations com imageUrl)
+        const completedImages = post?.variations.filter((v) => v.imageUrl).length || 0
+        const progressPct = Math.min(Math.round((completedImages / totalImages) * 95), 95) || (pollCount > 0 ? 5 : 2)
         return (
           <Card>
             <CardContent className="p-12 flex flex-col items-center justify-center gap-6">
@@ -287,13 +285,15 @@ export default function PostResultPage() {
                     : `Criando 3 variações de imagem com os textos aprovados. Isso leva cerca de ${timeLabel}.`}
                 </p>
                 <p className="text-blue-600 text-xs mt-2 font-medium">
-                  Imagem {currentSlide} de {totalImages} · não feche esta página
+                  {completedImages > 0
+                    ? `${completedImages} de ${totalImages} imagens prontas · não feche esta página`
+                    : `Preparando imagem 1 de ${totalImages} · não feche esta página`}
                 </p>
               </div>
               <div className="w-full max-w-xs">
                 <div className="flex justify-between text-xs text-gray-400 mb-2">
-                  <span>Progresso estimado</span>
-                  <span>{progressPct}%</span>
+                  <span>Progresso</span>
+                  <span>{completedImages}/{totalImages}</span>
                 </div>
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div
