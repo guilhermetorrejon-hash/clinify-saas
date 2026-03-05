@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Sparkles, ChevronRight, Upload, Camera, SkipForward, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeft, Sparkles, ChevronRight, Camera, User } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,33 +48,6 @@ const carouselStyles = [
 
 type Step = 'category' | 'format' | 'carouselStyle' | 'photo' | 'theme'
 
-interface PhotoSession {
-  id: string
-  generatedPhotoUrls: string[]
-  status: string
-}
-
-function resizeImageToBase64(file: File, maxSide = 1024): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
-        canvas.width = Math.round(img.width * scale)
-        canvas.height = Math.round(img.height * scale)
-        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL('image/jpeg', 0.85))
-      }
-      img.onerror = reject
-      img.src = e.target?.result as string
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
 export default function NovoPostPage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('category')
@@ -82,44 +55,17 @@ export default function NovoPostPage() {
   const [category, setCategory] = useState('')
   const [format, setFormat] = useState('')
   const [carouselStyle, setCarouselStyle] = useState('')
-  const [userPhotoUrl, setUserPhotoUrl] = useState('')
-  const [contextPhotoUrl, setContextPhotoUrl] = useState('')
-  const [contextPhotoPreview, setContextPhotoPreview] = useState('')
+  const [usePhoto, setUsePhoto] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [suggestingThemes, setSuggestingThemes] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
 
-  // Foto Pro gallery
-  const [proPhotos, setProPhotos] = useState<string[]>([])
-  const [loadingPhotos, setLoadingPhotos] = useState(false)
-  const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [uploadingContext, setUploadingContext] = useState(false)
-  const photoInputRef = useRef<HTMLInputElement>(null)
-  const contextPhotoInputRef = useRef<HTMLInputElement>(null)
 
   const selectedCategory = categories.find((c) => c.value === category)
   const selectedFormat = formats.find((f) => f.value === format)
   const selectedCarouselStyle = carouselStyles.find((s) => s.value === carouselStyle)
   const isCarousel = format === 'CARROSSEL'
-
-  const fetchProPhotos = useCallback(async () => {
-    setLoadingPhotos(true)
-    try {
-      const { data } = await api.get('/photos')
-      const completed = (data as PhotoSession[]).filter((s) => s.status === 'COMPLETED')
-      const allPhotos = completed.flatMap((s) => s.generatedPhotoUrls || [])
-      setProPhotos(allPhotos)
-    } catch {
-      // sem fotos
-    } finally {
-      setLoadingPhotos(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (step === 'photo') fetchProPhotos()
-  }, [step, fetchProPhotos])
 
   function handleSelectCategory(value: string) {
     setCategory(value)
@@ -143,54 +89,9 @@ export default function NovoPostPage() {
     setStep('photo')
   }
 
-  function handleSelectPhoto(url: string) {
-    setUserPhotoUrl(url)
+  function handlePhotoChoice(use: boolean) {
+    setUsePhoto(use)
     setStep('theme')
-  }
-
-  function handleSkipPhoto() {
-    setUserPhotoUrl('')
-    setStep('theme')
-  }
-
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Foto muito grande. Use uma imagem ate 5MB.')
-      return
-    }
-    setUploadingPhoto(true)
-    setError('')
-    try {
-      const dataUrl = await resizeImageToBase64(file)
-      setUserPhotoUrl(dataUrl)
-      setStep('theme')
-    } catch {
-      setError('Erro ao processar a foto.')
-    } finally {
-      setUploadingPhoto(false)
-    }
-  }
-
-  async function handleContextPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Foto muito grande. Use uma imagem ate 5MB.')
-      return
-    }
-    setUploadingContext(true)
-    setError('')
-    try {
-      const dataUrl = await resizeImageToBase64(file)
-      setContextPhotoUrl(dataUrl)
-      setContextPhotoPreview(dataUrl)
-    } catch {
-      setError('Erro ao processar a foto.')
-    } finally {
-      setUploadingContext(false)
-    }
   }
 
   async function handleSuggestThemes() {
@@ -217,8 +118,7 @@ export default function NovoPostPage() {
 
     try {
       const payload: Record<string, string> = { theme, category, format }
-      if (userPhotoUrl) payload.userPhotoUrl = userPhotoUrl
-      if (contextPhotoUrl) payload.contextPhotoUrl = contextPhotoUrl
+      if (!usePhoto) payload.userPhotoUrl = 'none'
       if (isCarousel && carouselStyle) payload.carouselStyle = carouselStyle
       const { data } = await api.post('/posts', payload)
       router.push(`/posts/${data.id}`)
@@ -244,9 +144,7 @@ export default function NovoPostPage() {
     setTheme('')
     setSuggestions([])
     if (['category', 'format', 'carouselStyle'].includes(target)) {
-      setUserPhotoUrl('')
-      setContextPhotoUrl('')
-      setContextPhotoPreview('')
+      setUsePhoto(true)
     }
     if (['category', 'format'].includes(target)) {
       setCarouselStyle('')
@@ -315,7 +213,7 @@ export default function NovoPostPage() {
             <button type="button" onClick={() => resetFrom('photo')}
               className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors">
               <Camera className="h-3 w-3" />
-              {userPhotoUrl ? 'Foto selecionada' : 'Sem foto'} ✕
+              {usePhoto ? 'Com foto' : 'Sem foto'} ✕
             </button>
           )}
         </div>
@@ -382,80 +280,30 @@ export default function NovoPostPage() {
 
       {/* Step: Foto */}
       {step === 'photo' && (
-        <div className="space-y-5">
+        <div className="space-y-4">
           <div>
-            <label className="text-sm font-semibold text-gray-700">Foto do profissional</label>
-            <p className="text-xs text-gray-500 mt-0.5">Escolha uma foto sua para a variacao fotografica</p>
+            <label className="text-sm font-semibold text-gray-700">Usar sua foto na arte?</label>
+            <p className="text-xs text-gray-500 mt-0.5">A foto sera puxada do seu perfil ou Foto Pro automaticamente</p>
           </div>
 
-          <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handlePhotoUpload} />
-          <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}
-            className="w-full border-2 border-dashed border-gray-200 rounded-xl p-6 flex items-center gap-4 hover:border-blue-300 hover:bg-blue-50 transition-all group">
-            <div className="h-12 w-12 rounded-xl bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center transition-colors shrink-0">
-              <Upload className="h-6 w-6 text-gray-400 group-hover:text-blue-500" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700">
-                {uploadingPhoto ? 'Processando...' : 'Enviar foto sua'}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">PNG, JPG ou WebP — ate 5MB</p>
-            </div>
-          </button>
-
-          {/* Galeria Foto Pro */}
-          {loadingPhotos ? (
-            <div className="text-center py-4 text-sm text-gray-400">Carregando fotos...</div>
-          ) : proPhotos.length > 0 ? (
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-700">Ou escolha do enxoval Foto Pro</label>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {proPhotos.map((url, i) => (
-                  <button key={i} type="button" onClick={() => handleSelectPhoto(url)}
-                    className="aspect-[3/4] rounded-xl border-2 border-gray-100 overflow-hidden hover:border-blue-500 hover:shadow-md transition-all">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
-                  </button>
-                ))}
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => handlePhotoChoice(true)}
+              className="p-5 rounded-xl border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 transition-all text-center space-y-2">
+              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto">
+                <User className="h-6 w-6 text-blue-600" />
               </div>
-            </div>
-          ) : null}
-
-          {/* Foto contextual (consultorio, procedimento) */}
-          <div className="border-t border-gray-100 pt-5">
-            <label className="text-sm font-semibold text-gray-700">Foto para a arte (opcional)</label>
-            <p className="text-xs text-gray-500 mt-0.5">Consultorio, procedimento, equipamento — a IA incorpora na arte</p>
-            <input ref={contextPhotoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleContextPhotoUpload} />
-            {contextPhotoPreview ? (
-              <div className="mt-3 flex items-center gap-4">
-                <div className="h-20 w-20 rounded-xl border border-gray-200 overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={contextPhotoPreview} alt="Foto contextual" className="w-full h-full object-cover" />
-                </div>
-                <div className="space-y-2">
-                  <Button variant="outline" size="sm" onClick={() => contextPhotoInputRef.current?.click()} loading={uploadingContext}>
-                    <Upload className="h-4 w-4" /> Trocar
-                  </Button>
-                  <button onClick={() => { setContextPhotoUrl(''); setContextPhotoPreview('') }}
-                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors">
-                    Remover
-                  </button>
-                </div>
+              <p className="font-semibold text-gray-900 text-sm">Sim, usar minha foto</p>
+              <p className="text-xs text-gray-500">Ideal para posts fotograficos</p>
+            </button>
+            <button type="button" onClick={() => handlePhotoChoice(false)}
+              className="p-5 rounded-xl border-2 border-gray-100 hover:border-gray-400 hover:bg-gray-50 transition-all text-center space-y-2">
+              <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto">
+                <Camera className="h-6 w-6 text-gray-400" />
               </div>
-            ) : (
-              <button onClick={() => contextPhotoInputRef.current?.click()} disabled={uploadingContext}
-                className="mt-3 w-full border-2 border-dashed border-gray-200 rounded-xl p-4 flex items-center gap-3 hover:border-gray-400 hover:bg-gray-50 transition-all group text-left">
-                <ImageIcon className="h-5 w-5 text-gray-400 shrink-0" />
-                <span className="text-sm text-gray-500">
-                  {uploadingContext ? 'Processando...' : 'Adicionar foto do consultorio/procedimento'}
-                </span>
-              </button>
-            )}
+              <p className="font-semibold text-gray-900 text-sm">Sem foto</p>
+              <p className="text-xs text-gray-500">Arte somente com design e textos</p>
+            </button>
           </div>
-
-          <Button type="button" variant="ghost" className="w-full" onClick={handleSkipPhoto}>
-            <SkipForward className="h-4 w-4" />
-            {contextPhotoUrl ? 'Continuar com foto contextual' : 'Pular — usar foto automatica'}
-          </Button>
         </div>
       )}
 

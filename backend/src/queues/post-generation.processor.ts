@@ -68,9 +68,11 @@ export class PostGenerationProcessor extends WorkerHost {
       await job.updateProgress(30);
 
       // Foto do profissional (retrato) — para variações fotográficas
-      let professionalPhotoUrl: string | undefined = post.userPhotoUrl || undefined;
+      // 'none' = usuário optou por não usar foto
+      const skipPhoto = post.userPhotoUrl === 'none';
+      let professionalPhotoUrl: string | undefined = (!skipPhoto && post.userPhotoUrl) || undefined;
 
-      if (!professionalPhotoUrl) {
+      if (!skipPhoto && !professionalPhotoUrl) {
         const photoSession = await this.prisma.professionalPhoto.findFirst({
           where: { userId, status: 'COMPLETED' },
           orderBy: { createdAt: 'desc' },
@@ -82,13 +84,14 @@ export class PostGenerationProcessor extends WorkerHost {
         }
       }
 
-      if (!professionalPhotoUrl && brandKit?.profilePhotoUrl) {
+      if (!skipPhoto && !professionalPhotoUrl && brandKit?.profilePhotoUrl) {
         professionalPhotoUrl = brandKit.profilePhotoUrl;
         this.logger.log(`[${postId}] Usando foto de perfil do brand kit`);
       }
 
-      // Foto contextual (consultório, procedimento) — enviada para TODAS as variações
-      const contextPhotoUrl: string | undefined = (post as any).contextPhotoUrl || undefined;
+      if (skipPhoto) {
+        this.logger.log(`[${postId}] Usuário optou por não usar foto profissional`);
+      }
 
       const total = post.variations.length;
       const progressStep = Math.floor(65 / total);
@@ -116,7 +119,6 @@ export class PostGenerationProcessor extends WorkerHost {
             subtitle,
             caption,
             userPhotoUrl: isPhotoVariation ? professionalPhotoUrl : undefined,
-            contextPhotoUrl,
           });
 
           // Aplicar logo via overlay (Sharp) — logo fiel, sem reinterpretação da IA
