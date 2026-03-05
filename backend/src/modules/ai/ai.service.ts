@@ -128,6 +128,24 @@ export class AiService {
     });
   }
 
+  async testOpenRouter(): Promise<string> {
+    const response = await this.openrouter.chat.completions.create({
+      model: process.env.OPENROUTER_TEXT_MODEL || 'anthropic/claude-sonnet-4-6',
+      max_tokens: 20,
+      messages: [{ role: 'user', content: 'Responda apenas: OK' }],
+    });
+    return response.choices[0]?.message?.content || 'empty response';
+  }
+
+  async testGoogleAI(): Promise<string> {
+    const model = process.env.GOOGLE_IMAGE_MODEL || 'nano-banana-pro-preview';
+    const response = await this.gemini.models.generateContent({
+      model,
+      contents: 'Responda apenas: OK',
+    });
+    return response.text || 'empty response';
+  }
+
   async generateCaption(params: {
     theme: string;
     category: PostCategory;

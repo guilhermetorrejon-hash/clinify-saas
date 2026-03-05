@@ -97,8 +97,8 @@ export class PostsService {
           profession,
           brandKit: brandKit || {},
         });
-      } catch (err) {
-        this.logger.warn(`[post ${post.id}] Tentativa ${attempt}/2 de geração de textos falhou: ${err}`);
+      } catch (err: any) {
+        this.logger.error(`[post ${post.id}] Tentativa ${attempt}/2 de geração de textos falhou: ${err.message || err}`, err.stack);
       }
     }
 
