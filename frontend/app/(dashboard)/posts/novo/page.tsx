@@ -38,7 +38,7 @@ export default function NovoPostPage() {
     setSuggestingThemes(true)
     try {
       const { data } = await api.post('/posts/suggest-themes')
-      setSuggestions(Array.isArray(data) ? data : data.themes || [])
+      setSuggestions(Array.isArray(data) ? data : data.suggestions || data.themes || [])
     } catch {
       // silently fail
     } finally {

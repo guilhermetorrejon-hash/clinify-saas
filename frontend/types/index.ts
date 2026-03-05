@@ -9,13 +9,12 @@ export type Profession =
 
 export type PostCategory =
   | 'EDUCATIVO'
-  | 'DICA_SAUDE'
   | 'INSTITUCIONAL'
   | 'MOTIVACIONAL'
   | 'CRIATIVO_ANUNCIO'
 
-export type PostFormat = 'FEED' | 'STORIES' | 'CARROSSEL'
-export type PostStatus = 'DRAFT' | 'GENERATING' | 'COMPLETED' | 'FAILED'
+export type PostFormat = 'FEED' | 'PORTRAIT' | 'STORIES' | 'CARROSSEL'
+export type PostStatus = 'DRAFT' | 'TEXTS_READY' | 'GENERATING' | 'COMPLETED' | 'FAILED'
 
 export interface Plan {
   id: string
@@ -34,12 +33,14 @@ export interface BrandKit {
   registrationCouncil?: string
   registrationNumber?: string
   bio?: string
-  tagline?: string
+  areasOfExpertise?: string[]
   brandPrimaryColor?: string
   brandSecondaryColor?: string
   logoUrl?: string
+  logoWhiteUrl?: string
   profilePhotoUrl?: string
   instagramHandle?: string
+  preferredFont?: string
 }
 
 export interface User {
@@ -67,6 +68,8 @@ export interface Post {
   theme: string
   category: PostCategory
   format: PostFormat
+  headline?: string
+  subtitle?: string
   caption?: string
   status: PostStatus
   createdAt: string

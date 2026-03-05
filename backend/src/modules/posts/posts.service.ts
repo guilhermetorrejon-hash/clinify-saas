@@ -34,8 +34,8 @@ export class PostsService {
   async suggestThemes(userId: string, dto: SuggestThemesDto) {
     const suggestions = await this.ai.generateThemeSuggestions(
       userId,
-      dto.category,
-      dto.format,
+      dto.category || 'EDUCATIVO',
+      dto.format || 'FEED',
       this.prisma,
     );
     return { suggestions };
