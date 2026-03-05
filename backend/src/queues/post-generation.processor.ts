@@ -133,8 +133,8 @@ export class PostGenerationProcessor extends WorkerHost {
               isSelected: i === 0, // slide 1 ou variação fotográfica selecionada por padrão
             },
           });
-        } catch (err) {
-          this.logger.warn(`[${postId}] Falha na ${isCarrossel ? 'slide' : 'variação'} ${i + 1}: ${err}`);
+        } catch (err: any) {
+          this.logger.error(`[${postId}] Falha na ${isCarrossel ? 'slide' : 'variação'} ${i + 1} (${designStyle}): ${err.message || err}`, err.stack);
         }
 
         await job.updateProgress(30 + (i + 1) * progressStep);

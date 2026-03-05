@@ -146,6 +146,35 @@ export class AiService {
     return response.text || 'empty response';
   }
 
+  async testGoogleAIImage(): Promise<string> {
+    const models = [
+      process.env.GOOGLE_IMAGE_MODEL || 'nano-banana-pro-preview',
+      'gemini-2.5-flash-image',
+    ];
+    for (const model of models) {
+      try {
+        const response = await this.gemini.models.generateContent({
+          model,
+          contents: { role: 'user', parts: [{ text: 'Generate a simple blue square, 100x100 pixels.' }] },
+          config: {
+            responseModalities: [Modality.IMAGE],
+            thinkingConfig: { thinkingBudget: 0 },
+          },
+        });
+        const parts = response.candidates?.[0]?.content?.parts || [];
+        const imagePart = parts.find((p: any) => p.inlineData?.data);
+        if (imagePart?.inlineData?.data) {
+          return `ok (${model}, ${Math.round(imagePart.inlineData.data.length / 1024)}KB)`;
+        }
+        return `no image in response (${model})`;
+      } catch (err: any) {
+        this.logger.warn(`testGoogleAIImage failed for ${model}: ${err.message}`);
+        continue;
+      }
+    }
+    throw new Error('All image models failed');
+  }
+
   async generateCaption(params: {
     theme: string;
     category: PostCategory;

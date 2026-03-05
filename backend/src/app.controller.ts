@@ -39,12 +39,20 @@ export class AppController {
       checks.openrouter = { status: 'error', message: err.message, code: err.status || err.code };
     }
 
-    // Test Google AI
+    // Test Google AI (text)
     try {
       const response = await this.ai.testGoogleAI();
-      checks.googleAI = { status: 'ok', response };
+      checks.googleAI_text = { status: 'ok', response };
     } catch (err: any) {
-      checks.googleAI = { status: 'error', message: err.message, code: err.status || err.code };
+      checks.googleAI_text = { status: 'error', message: err.message, code: err.status || err.code };
+    }
+
+    // Test Google AI (image generation - the actual feature)
+    try {
+      const response = await this.ai.testGoogleAIImage();
+      checks.googleAI_image = { status: 'ok', response };
+    } catch (err: any) {
+      checks.googleAI_image = { status: 'error', message: err.message, code: err.status || err.code };
     }
 
     return checks;
