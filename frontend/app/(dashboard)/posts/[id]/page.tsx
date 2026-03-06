@@ -86,7 +86,6 @@ export default function PostResultPage() {
     try {
       const { data } = await api.get<Post>(`/posts/${id}`, {
         params: { _t: Date.now() },
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
       })
       const imgs = data.variations?.filter((v: any) => v.imageUrl).length || 0
       console.log(`[poll] status=${data.status} imgs=${imgs}/${data.variations?.length}`)
