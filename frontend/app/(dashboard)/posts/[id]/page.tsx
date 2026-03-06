@@ -85,15 +85,18 @@ export default function PostResultPage() {
   const fetchPost = useCallback(async (): Promise<PostStatus | null> => {
     try {
       const { data } = await api.get<Post>(`/posts/${id}`, {
-        params: { _t: Date.now() }, // cache busting
+        params: { _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
       })
+      const imgs = data.variations?.filter((v: any) => v.imageUrl).length || 0
+      console.log(`[poll] status=${data.status} imgs=${imgs}/${data.variations?.length}`)
       setPost(data)
       const selected = data.variations.find((v) => v.isSelected)
       if (selected) setSelectedVariation(selected.id)
       return data.status
     } catch (err: any) {
-      console.warn('[polling] Erro ao buscar post:', err?.response?.status || err?.message)
-      return null // null = erro de rede, continuar polling
+      console.warn('[poll] ERRO:', err?.response?.status, err?.message)
+      return null
     }
   }, [id])
 
@@ -107,22 +110,29 @@ export default function PostResultPage() {
     })
   }, [id, fetchPost])
 
-  // Polling ativo apenas durante geração (DRAFT→TEXTS_READY ou GENERATING→COMPLETED)
+  // Polling ativo durante geração (DRAFT→TEXTS_READY ou GENERATING→COMPLETED)
   useEffect(() => {
     if (!generatingImages) return
+    console.log('[poll] Polling INICIADO')
     let polls = 0
     const interval = setInterval(async () => {
       polls++
-      if (polls >= MAX_POLLS) { clearInterval(interval); return }
+      if (polls >= MAX_POLLS) {
+        console.warn('[poll] MAX_POLLS atingido, parando')
+        clearInterval(interval)
+        return
+      }
       const status = await fetchPost()
-      // Parar polling apenas em status definitivos
       if (status === 'COMPLETED' || status === 'FAILED' || status === 'TEXTS_READY') {
+        console.log(`[poll] Status final: ${status}, parando polling`)
         clearInterval(interval)
         setGeneratingImages(false)
       }
-      // null = erro de rede → continuar polling (não parar!)
     }, POLLING_INTERVAL)
-    return () => clearInterval(interval)
+    return () => {
+      console.log('[poll] Polling PARADO (cleanup)')
+      clearInterval(interval)
+    }
   }, [generatingImages, fetchPost])
 
   async function handleSelectVariation(variationId: string) {

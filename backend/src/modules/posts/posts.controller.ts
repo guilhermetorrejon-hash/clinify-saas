@@ -97,8 +97,28 @@ export class PostsController {
 
   @SkipThrottle()
   @Get(':id')
-  findOne(@CurrentUser() user: any, @Param('id') id: string) {
+  async findOne(@CurrentUser() user: any, @Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     return this.postsService.findOne(user.id, id);
+  }
+
+  /** Endpoint leve para debug — retorna status e contagem de imagens */
+  @SkipThrottle()
+  @Get(':id/status')
+  async getStatus(@CurrentUser() user: any, @Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+    res.setHeader('Cache-Control', 'no-store');
+    const post = await this.postsService.findOne(user.id, id);
+    return {
+      status: post.status,
+      total: post.variations.length,
+      completed: post.variations.filter((v: any) => v.imageUrl).length,
+      variations: post.variations.map((v: any) => ({
+        id: v.id,
+        designStyle: v.designStyle,
+        hasImage: !!v.imageUrl,
+      })),
+    };
   }
 
   @Patch(':id')
