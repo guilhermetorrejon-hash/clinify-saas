@@ -1,10 +1,11 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { KiwifyService } from './kiwify.service';
 
 @ApiTags('Webhooks')
+@UseGuards(ThrottlerGuard)
 @Controller('webhooks/kiwify')
 export class KiwifyController {
   constructor(private kiwifyService: KiwifyService) {}

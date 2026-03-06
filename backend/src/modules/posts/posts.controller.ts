@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -12,7 +11,6 @@ import { SuggestThemesDto } from './dto/suggest-themes.dto';
 
 @ApiTags('Posts')
 @ApiBearerAuth()
-@SkipThrottle()
 @UseGuards(JwtAuthGuard)
 @Controller('posts')
 export class PostsController {
@@ -28,7 +26,6 @@ export class PostsController {
     return this.postsService.create(user.id, dto);
   }
 
-  @SkipThrottle()
   @Get()
   findAll(@CurrentUser() user: any) {
     return this.postsService.findAll(user.id);
@@ -36,7 +33,6 @@ export class PostsController {
 
   /** Proxy público para download de imagens do R2 — evita bloqueio CORS no browser */
   /** DEVE ficar antes de @Get(':id') para não ser capturado como parâmetro */
-  @SkipThrottle()
   @Public()
   @Get('download-proxy')
   async downloadProxy(
@@ -44,25 +40,20 @@ export class PostsController {
     @Query('filename') filename: string,
     @Res() res: Response,
   ) {
-    // ✅ Validação RIGOROSA de SSRF
     const r2PublicUrl = process.env.R2_PUBLIC_URL;
 
-    // Falhar HARD se R2_PUBLIC_URL não estiver configurado
     if (!r2PublicUrl) {
       return res.status(403).send('Proxy não configurado');
     }
 
     try {
-      // Verificar que URL é válida
       const parsed = new URL(url);
       const allowed = new URL(r2PublicUrl);
 
-      // ✅ Hostname DEVE corresponder a R2
       if (parsed.hostname !== allowed.hostname) {
         return res.status(403).send('URL não permitida');
       }
 
-      // ✅ Apenas extensões de imagem permitidas
       const validExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
       const hasValidExt = validExtensions.some(ext =>
         url.toLowerCase().endsWith(ext)
@@ -96,7 +87,6 @@ export class PostsController {
     }
   }
 
-  @SkipThrottle()
   @Get(':id')
   async findOne(@CurrentUser() user: any, @Param('id') id: string, @Res({ passthrough: true }) res: Response) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -104,8 +94,6 @@ export class PostsController {
     return this.postsService.findOne(user.id, id);
   }
 
-  /** Endpoint leve para debug — retorna status e contagem de imagens */
-  @SkipThrottle()
   @Get(':id/status')
   async getStatus(@CurrentUser() user: any, @Param('id') id: string, @Res({ passthrough: true }) res: Response) {
     res.setHeader('Cache-Control', 'no-store');
