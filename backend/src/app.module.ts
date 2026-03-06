@@ -20,9 +20,9 @@ import { AppController } from './app.controller';
     // Rate limiting: diferentes limites por tipo de endpoint
     ThrottlerModule.forRoot([
       {
-        name: 'short',    // 15 requests / 60 segundos (padrão)
+        name: 'short',    // 60 requests / 60 segundos (padrão)
         ttl: 60000,
-        limit: 15,
+        limit: 60,
       },
       {
         name: 'auth',     // 5 tentativas / 15 minutos para auth

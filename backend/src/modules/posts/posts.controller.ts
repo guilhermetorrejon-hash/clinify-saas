@@ -12,6 +12,7 @@ import { SuggestThemesDto } from './dto/suggest-themes.dto';
 
 @ApiTags('Posts')
 @ApiBearerAuth()
+@SkipThrottle()
 @UseGuards(JwtAuthGuard)
 @Controller('posts')
 export class PostsController {
