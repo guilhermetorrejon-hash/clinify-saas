@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../database/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { UsageService } from '../usage/usage.service';
 import { StartPhotoSessionDto } from './dto/start-photo-session.dto';
 import { PHOTO_GENERATION_QUEUE, PhotoGenerationJob } from '../../queues/photo-generation.processor';
 
@@ -20,11 +21,16 @@ export class PhotosService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private usage: UsageService,
     @InjectQueue(PHOTO_GENERATION_QUEUE) private photosQueue: Queue<PhotoGenerationJob>,
   ) {}
 
   async startSession(userId: string, dto: StartPhotoSessionDto) {
     const { mode, photos } = dto;
+
+    // Verificar se o usuário ainda tem cota de sessões de foto no mês
+    // Tanto UPLOAD quanto GENERATE consomem 1 sessão de foto
+    await this.usage.checkLimit(userId, 'PHOTO');
 
     if (mode === 'GENERATE' && photos.length < 3) {
       throw new BadRequestException('Para gerar fotos com IA, envie pelo menos 3 fotos de referência.');
@@ -44,7 +50,7 @@ export class PhotosService {
 
     // Modo UPLOAD: fotos já prontas — salvar diretamente como geradas
     if (mode === 'UPLOAD') {
-      return this.prisma.professionalPhoto.create({
+      const session = await this.prisma.professionalPhoto.create({
         data: {
           userId,
           mode: 'UPLOAD',
@@ -53,6 +59,9 @@ export class PhotosService {
           status: 'COMPLETED',
         },
       });
+      // Registrar que consumiu 1 sessão de foto
+      await this.usage.record(userId, 'PHOTO');
+      return session;
     }
 
     // Modo GENERATE: criar sessão e enfileirar job de treinamento LoRA
@@ -65,6 +74,9 @@ export class PhotosService {
         status: 'PENDING',
       },
     });
+
+    // Registrar que consumiu 1 sessão de foto
+    await this.usage.record(userId, 'PHOTO');
 
     const job = await this.photosQueue.add(
       'generate-photos',
@@ -90,6 +102,23 @@ export class PhotosService {
     if (!session) throw new NotFoundException('Sessão não encontrada');
     if (session.userId !== userId) throw new ForbiddenException();
     return session;
+  }
+
+  async updateFavorites(userId: string, sessionId: string, favoriteUrls: string[]) {
+    const session = await this.prisma.professionalPhoto.findUnique({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('Sessão não encontrada');
+    if (session.userId !== userId) throw new ForbiddenException();
+
+    // Validar que todas as URLs existem nas fotos geradas
+    const invalid = favoriteUrls.filter(url => !session.generatedPhotoUrls.includes(url));
+    if (invalid.length > 0) {
+      throw new BadRequestException('Uma ou mais URLs não pertencem a esta sessão.');
+    }
+
+    return this.prisma.professionalPhoto.update({
+      where: { id: sessionId },
+      data: { favoritePhotoUrls: favoriteUrls },
+    });
   }
 
   async deleteSession(userId: string, sessionId: string) {

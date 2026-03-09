@@ -8,8 +8,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
   // Aumentar limite para suportar múltiplas fotos em base64 (~50MB)
+  // O "verify" salva o body original (cru) no req.rawBody — isso é
+  // necessário para validar a assinatura HMAC de webhooks (Kiwify)
   const { json, urlencoded } = await import('express');
-  app.use(json({ limit: '50mb' }));
+  app.use(json({
+    limit: '50mb',
+    verify: (req: any, _res, buf) => { req.rawBody = buf; },
+  }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   // ✅ Validação rigorosa de FRONTEND_URL

@@ -29,12 +29,31 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
+    // Buscar plano gratuito para atribuir automaticamente ao novo usuário
+    const freePlan = await this.prisma.plan.findFirst({
+      where: { slug: 'gratuito', isActive: true },
+    });
+
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 ano
+
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
         email: dto.email,
         passwordHash,
         brandKit: { create: {} },
+        // Se existe plano gratuito, criar assinatura automaticamente
+        ...(freePlan ? {
+          subscription: {
+            create: {
+              planId: freePlan.id,
+              status: 'ACTIVE',
+              currentPeriodStart: now,
+              currentPeriodEnd: periodEnd,
+            },
+          },
+        } : {}),
       },
       select: { id: true, email: true, name: true, role: true, createdAt: true },
     });

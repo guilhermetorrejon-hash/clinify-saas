@@ -11,6 +11,8 @@ import { PlansModule } from './modules/plans/plans.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { KiwifyModule } from './modules/kiwify/kiwify.module';
 import { PhotosModule } from './modules/photos/photos.module';
+import { UsageModule } from './modules/usage/usage.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -44,6 +46,8 @@ import { AppController } from './app.controller';
     PostsModule,
     KiwifyModule,
     PhotosModule,
+    UsageModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [],

@@ -79,10 +79,16 @@ export class PostGenerationProcessor extends WorkerHost {
           where: { userId, status: 'COMPLETED' },
           orderBy: { createdAt: 'desc' },
         });
-        if (photoSession?.generatedPhotoUrls?.length) {
-          const idx = Math.floor(Math.random() * photoSession.generatedPhotoUrls.length);
-          professionalPhotoUrl = photoSession.generatedPhotoUrls[idx];
-          this.logger.log(`[${postId}] Usando foto do enxoval profissional`);
+        if (photoSession) {
+          // Prioridade: favoritas > todas as geradas
+          const pool = photoSession.favoritePhotoUrls?.length
+            ? photoSession.favoritePhotoUrls
+            : photoSession.generatedPhotoUrls;
+          if (pool.length) {
+            const idx = Math.floor(Math.random() * pool.length);
+            professionalPhotoUrl = pool[idx];
+            this.logger.log(`[${postId}] Usando foto do enxoval profissional (${photoSession.favoritePhotoUrls?.length ? 'favorita' : 'aleatória'})`);
+          }
         }
       }
 
@@ -113,6 +119,9 @@ export class PostGenerationProcessor extends WorkerHost {
               || designStyle === 'carrossel_foto_1'
               || designStyle === 'carrossel_foto_5';
 
+            // Foto contextual: enviar para TODAS as variações (o prompt da IA decide como integrar)
+            const useContextPhoto = true;
+
             let { base64, mimeType } = await this.ai.generatePostImage({
               theme: post.theme,
               category: post.category,
@@ -123,19 +132,45 @@ export class PostGenerationProcessor extends WorkerHost {
               subtitle,
               caption,
               userPhotoUrl: isPhotoVariation ? professionalPhotoUrl : undefined,
+              contextPhotoUrl: useContextPhoto ? ((post as any).contextPhotoUrl || undefined) : undefined,
             });
 
-            // Logo overlay
-            if (brandKit?.logoUrl) {
+            // Dimensões alvo por formato para o trim
+            const formatDimensions: Record<string, { w: number; h: number }> = {
+              FEED: { w: 1080, h: 1080 },
+              PORTRAIT: { w: 1080, h: 1350 },
+              STORIES: { w: 1080, h: 1920 },
+              CARROSSEL: { w: 1080, h: 1080 },
+            };
+            const dims = formatDimensions[post.format] || { w: 1080, h: 1080 };
+
+            // Pós-processamento: remover bordas brancas que o Gemini às vezes gera
+            base64 = await this.logoOverlay.trimWhiteBorders(base64, dims.w, dims.h);
+
+            // Logo overlay — usar versão correta conforme fundo claro/escuro
+            if (brandKit?.logoUrl || brandKit?.logoWhiteUrl) {
               const isDarkVariation = designStyle === 'grafico'
                 || designStyle === 'fotografico'
                 || /^carrossel_(foto|graf)_\d+$/.test(designStyle);
 
-              const logoSource = (isDarkVariation && brandKit.logoWhiteUrl)
-                ? brandKit.logoWhiteUrl
-                : brandKit.logoUrl;
+              let logoSource: string | null = null;
+              if (isDarkVariation) {
+                // Fundo escuro → OBRIGATÓRIO usar logo branca/clara
+                logoSource = brandKit.logoWhiteUrl || null;
+                if (!logoSource) {
+                  this.logger.warn(`[${postId}] Variação escura (${designStyle}) sem logoWhiteUrl — pulando overlay para evitar logo escura em fundo escuro`);
+                }
+              } else {
+                // Fundo claro → usar logo padrão (escura/colorida)
+                logoSource = brandKit.logoUrl || null;
+                if (!logoSource) {
+                  this.logger.warn(`[${postId}] Variação clara (${designStyle}) sem logoUrl — pulando overlay`);
+                }
+              }
 
-              base64 = await this.logoOverlay.applyLogo(base64, logoSource);
+              if (logoSource) {
+                base64 = await this.logoOverlay.applyLogo(base64, logoSource);
+              }
             }
 
             const imageUrl = await this.storage.uploadBase64Image(

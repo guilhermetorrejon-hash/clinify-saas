@@ -6,11 +6,7 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '2mb',
     },
   },
-  async redirects() {
-    return [
-      { source: '/', destination: '/login', permanent: false },
-    ]
-  },
+  // Redirect removido — agora "/" é a landing page com preços
 }
 
 export default nextConfig

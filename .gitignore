@@ -25,6 +25,12 @@ Thumbs.db
 *.swp
 
 # AIOX Local (AIOX)
-.aiox-core/local/
-.claude/settings.local.json
-.aiox/install-log.txt
+.aiox-core/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.antigravity/
+
+# Screenshots de teste
+Testes/

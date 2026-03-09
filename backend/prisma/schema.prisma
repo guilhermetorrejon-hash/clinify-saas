@@ -58,6 +58,14 @@ enum PhotoStatus {
   FAILED
 }
 
+enum UsageType {
+  POST
+  CAROUSEL
+  PHOTO
+  THEME_SUGGESTION
+  CAPTION_REWRITE
+}
+
 model User {
   id             String        @id @default(uuid())
   email          String        @unique
@@ -71,21 +79,25 @@ model User {
   brandKit       BrandKit?
   posts          Post[]
   photos         ProfessionalPhoto[]
+  usageRecords   UsageRecord[]
 
   @@map("users")
 }
 
 model Plan {
-  id              String   @id @default(uuid())
-  name            String
-  slug            String   @unique
-  postsPerWeek    Int
-  photosPerMonth  Int
-  priceInCents    Int
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
+  id                  String   @id @default(uuid())
+  name                String
+  slug                String   @unique
+  postsPerMonth       Int      @default(4)
+  carouselsPerMonth   Int      @default(1)
+  photosPerMonth      Int      @default(4)
+  themeSuggestions     Int      @default(16)
+  captionRewrites     Int      @default(12)
+  priceInCents        Int
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
 
-  subscriptions   Subscription[]
+  subscriptions       Subscription[]
 
   @@map("plans")
 }
@@ -139,6 +151,7 @@ model ProfessionalPhoto {
   mode                 String      @default("GENERATE") // GENERATE | UPLOAD
   originalPhotoUrls    String[]
   generatedPhotoUrls   String[]    @default([])
+  favoritePhotoUrls    String[]    @default([])
   loraUrl              String?
   status               PhotoStatus @default(PENDING)
   jobId                String?
@@ -183,6 +196,18 @@ model PostVariation {
   post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@map("post_variations")
+}
+
+model UsageRecord {
+  id        String    @id @default(uuid())
+  userId    String
+  type      UsageType
+  createdAt DateTime  @default(now())
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt])
+  @@map("usage_records")
 }
 
 model KiwifyEvent {

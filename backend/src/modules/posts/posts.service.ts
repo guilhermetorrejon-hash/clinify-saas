@@ -8,10 +8,12 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../database/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { StorageService } from '../storage/storage.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { SuggestThemesDto } from './dto/suggest-themes.dto';
 import { POST_GENERATION_QUEUE, PostGenerationJob } from '../../queues/post-generation.processor';
+import { UsageService } from '../usage/usage.service';
 import { Profession } from '@prisma/client';
 
 const QUEUE_OPTIONS = {
@@ -28,20 +30,43 @@ export class PostsService {
   constructor(
     private prisma: PrismaService,
     private ai: AiService,
+    private storage: StorageService,
+    private usage: UsageService,
     @InjectQueue(POST_GENERATION_QUEUE) private postsQueue: Queue<PostGenerationJob>,
   ) {}
 
   async suggestThemes(userId: string, dto: SuggestThemesDto) {
+    // Verificar se o usuário ainda tem cota de sugestões de tema no mês
+    await this.usage.checkLimit(userId, 'THEME_SUGGESTION');
+
     const suggestions = await this.ai.generateThemeSuggestions(
       userId,
       dto.category || 'EDUCATIVO',
       dto.format || 'FEED',
       this.prisma,
     );
+
+    // Registrar que consumiu 1 sugestão de tema
+    await this.usage.record(userId, 'THEME_SUGGESTION');
     return { suggestions };
   }
 
   async create(userId: string, dto: CreatePostDto) {
+    // Verificar cota: carrossel e post têm limites separados
+    const usageType = dto.format === 'CARROSSEL' ? 'CAROUSEL' : 'POST';
+    await this.usage.checkLimit(userId, usageType as any);
+
+    // Upload da foto contextual para R2 (se vier como data URL)
+    let contextPhotoUrl = dto.contextPhotoUrl || null;
+    if (contextPhotoUrl?.startsWith('data:')) {
+      const match = contextPhotoUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        contextPhotoUrl = await this.storage.uploadBase64Image(
+          match[2], match[1], `posts/${userId}/context`,
+        );
+      }
+    }
+
     // Criar post base com status DRAFT
     const post = await this.prisma.post.create({
       data: {
@@ -51,7 +76,7 @@ export class PostsService {
         format: dto.format,
         status: 'DRAFT',
         userPhotoUrl: dto.userPhotoUrl || null,
-        contextPhotoUrl: dto.contextPhotoUrl || null,
+        contextPhotoUrl,
         variations: {
           createMany: {
             data: dto.format === 'CARROSSEL'
@@ -77,6 +102,10 @@ export class PostsService {
       },
       include: { variations: true },
     });
+
+    // Registrar que o usuário consumiu 1 post (ou carrossel) do plano dele
+    // Isso é feito DEPOIS de criar o post com sucesso no banco
+    await this.usage.record(userId, usageType as any);
 
     // Gerar textos em background — retorna DRAFT imediatamente,
     // frontend faz polling até TEXTS_READY
@@ -127,6 +156,9 @@ export class PostsService {
     if (!post) throw new NotFoundException('Post não encontrado');
     if (post.userId !== userId) throw new ForbiddenException();
 
+    // Verificar se o usuário ainda tem cota de reescritas de copy no mês
+    await this.usage.checkLimit(userId, 'CAPTION_REWRITE');
+
     const brandKit = await this.prisma.brandKit.findUnique({ where: { userId } });
     const profession: Profession = brandKit?.profession || 'OUTRO';
 
@@ -139,11 +171,16 @@ export class PostsService {
       alternativeApproach: true,
     });
 
-    return this.prisma.post.update({
+    const updated = await this.prisma.post.update({
       where: { id: postId },
       data: { headline: texts.headline, subtitle: texts.subtitle, caption: texts.caption },
       include: { variations: true },
     });
+
+    // Registrar que consumiu 1 reescrita de copy após sucesso
+    await this.usage.record(userId, 'CAPTION_REWRITE');
+
+    return updated;
   }
 
   async generateImages(userId: string, postId: string) {

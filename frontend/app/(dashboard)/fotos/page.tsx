@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Camera, Sparkles, Upload, ImagePlus, X, Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, ChevronRight } from 'lucide-react'
+import { Camera, Sparkles, Upload, ImagePlus, X, Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, ChevronRight, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ interface PhotoSession {
   id: string
   mode: string
   generatedPhotoUrls: string[]
+  favoritePhotoUrls: string[]
   status: PhotoStatus
   createdAt: string
 }
@@ -125,6 +126,29 @@ export default function FotosPage() {
     }
   }
 
+  async function handleToggleFavorite(sessionId: string, photoUrl: string) {
+    const session = sessions.find(s => s.id === sessionId)
+    if (!session) return
+
+    const current = session.favoritePhotoUrls || []
+    const isFav = current.includes(photoUrl)
+    const updated = isFav ? current.filter(u => u !== photoUrl) : [...current, photoUrl]
+
+    // Atualizar estado local imediatamente (otimista)
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? { ...s, favoritePhotoUrls: updated } : s
+    ))
+
+    try {
+      await api.patch(`/photos/${sessionId}/favorites`, { favoriteUrls: updated })
+    } catch {
+      // Reverter em caso de erro
+      setSessions(prev => prev.map(s =>
+        s.id === sessionId ? { ...s, favoritePhotoUrls: current } : s
+      ))
+    }
+  }
+
   async function handleDelete(sessionId: string) {
     try {
       await api.delete(`/photos/${sessionId}`)
@@ -151,7 +175,10 @@ export default function FotosPage() {
 
   const activeSession = sessions.find(s => s.status === 'PENDING' || s.status === 'PROCESSING')
   const completedSessions = sessions.filter(s => s.status === 'COMPLETED')
-  const allPhotos = completedSessions.flatMap(s => s.generatedPhotoUrls)
+  const allPhotos = completedSessions.flatMap(s =>
+    s.generatedPhotoUrls.map(url => ({ url, sessionId: s.id, isFavorite: (s.favoritePhotoUrls || []).includes(url) }))
+  )
+  const favoriteCount = allPhotos.filter(p => p.isFavorite).length
 
   // ─────────────────────────────────────────
   // Tela de upload
@@ -375,24 +402,47 @@ export default function FotosPage() {
       {allPhotos.length > 0 ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500 font-medium">{allPhotos.length} fotos disponíveis</p>
+            <p className="text-sm text-gray-500 font-medium">
+              {allPhotos.length} fotos disponíveis{favoriteCount > 0 && ` · ${favoriteCount} favorita${favoriteCount !== 1 ? 's' : ''}`}
+            </p>
+            {favoriteCount > 0 && (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                Favoritas são priorizadas nos posts
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {allPhotos.map((url, i) => (
-              <div key={i} className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-gray-100">
+            {allPhotos.map((photo, i) => (
+              <div key={i} className={cn(
+                'group relative aspect-[3/4] rounded-2xl overflow-hidden bg-gray-100',
+                photo.isFavorite && 'ring-2 ring-amber-400 ring-offset-2'
+              )}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={url}
+                  src={photo.url}
                   alt={`Foto profissional ${i + 1}`}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100">
+                {/* Botão de favorito — sempre visível */}
+                <button
+                  onClick={() => handleToggleFavorite(photo.sessionId, photo.url)}
+                  className={cn(
+                    'absolute top-2 right-2 h-8 w-8 rounded-full flex items-center justify-center transition-all',
+                    photo.isFavorite
+                      ? 'bg-amber-400 text-white shadow-md'
+                      : 'bg-black/40 text-white/70 hover:bg-black/60 hover:text-white'
+                  )}
+                >
+                  <Star className={cn('h-4 w-4', photo.isFavorite && 'fill-white')} />
+                </button>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100 pointer-events-none">
                   <a
-                    href={url}
+                    href={photo.url}
                     download={`foto-pro-${i + 1}.jpg`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white text-gray-900 text-xs font-medium hover:bg-gray-100 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white text-gray-900 text-xs font-medium hover:bg-gray-100 transition-colors pointer-events-auto"
                     onClick={e => e.stopPropagation()}
                   >
                     <Download className="h-3 w-3" />

@@ -88,6 +88,100 @@ export class LogoOverlayService {
     }
   }
 
+  /**
+   * Remove bordas brancas/cinza claras ao redor da imagem gerada pelo Gemini.
+   * Detecta se há faixas uniformes claras nas bordas e recorta, depois redimensiona ao tamanho original.
+   */
+  async trimWhiteBorders(imageBase64: string, targetWidth: number, targetHeight: number): Promise<string> {
+    const sharp = await this.getSharp();
+    if (!sharp) return imageBase64;
+
+    try {
+      const imageBuffer = Buffer.from(imageBase64, 'base64');
+      const metadata = await sharp(imageBuffer).metadata();
+      if (!metadata.width || !metadata.height) return imageBase64;
+
+      // Extrai pixels da borda para verificar se são brancos/cinza claro
+      const { data, info } = await sharp(imageBuffer)
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      const w = info.width;
+      const h = info.height;
+      const channels = info.channels;
+      const THRESHOLD = 240; // Pixels com R,G,B > 240 são considerados "brancos"
+      const MIN_BORDER = 3; // Mínimo de pixels de borda para considerar como borda indesejada
+
+      const isWhitePixel = (x: number, y: number): boolean => {
+        const idx = (y * w + x) * channels;
+        return data[idx] > THRESHOLD && data[idx + 1] > THRESHOLD && data[idx + 2] > THRESHOLD;
+      };
+
+      // Detecta bordas — verifica se linhas/colunas inteiras são brancas
+      let top = 0, bottom = 0, left = 0, right = 0;
+
+      // Borda superior
+      for (let y = 0; y < Math.min(h * 0.1, 80); y++) {
+        let allWhite = true;
+        for (let x = 0; x < w; x += Math.max(1, Math.floor(w / 20))) {
+          if (!isWhitePixel(x, y)) { allWhite = false; break; }
+        }
+        if (allWhite) top = y + 1; else break;
+      }
+
+      // Borda inferior
+      for (let y = h - 1; y > h - Math.min(h * 0.1, 80); y--) {
+        let allWhite = true;
+        for (let x = 0; x < w; x += Math.max(1, Math.floor(w / 20))) {
+          if (!isWhitePixel(x, y)) { allWhite = false; break; }
+        }
+        if (allWhite) bottom = h - y; else break;
+      }
+
+      // Borda esquerda
+      for (let x = 0; x < Math.min(w * 0.1, 80); x++) {
+        let allWhite = true;
+        for (let y = 0; y < h; y += Math.max(1, Math.floor(h / 20))) {
+          if (!isWhitePixel(x, y)) { allWhite = false; break; }
+        }
+        if (allWhite) left = x + 1; else break;
+      }
+
+      // Borda direita
+      for (let x = w - 1; x > w - Math.min(w * 0.1, 80); x--) {
+        let allWhite = true;
+        for (let y = 0; y < h; y += Math.max(1, Math.floor(h / 20))) {
+          if (!isWhitePixel(x, y)) { allWhite = false; break; }
+        }
+        if (allWhite) right = w - x; else break;
+      }
+
+      if (top < MIN_BORDER && bottom < MIN_BORDER && left < MIN_BORDER && right < MIN_BORDER) {
+        return imageBase64; // Sem bordas brancas detectadas
+      }
+
+      this.logger.log(`Bordas brancas detectadas: top=${top} bottom=${bottom} left=${left} right=${right} — recortando e redimensionando`);
+
+      const cropWidth = w - left - right;
+      const cropHeight = h - top - bottom;
+
+      if (cropWidth < w * 0.7 || cropHeight < h * 0.7) {
+        this.logger.warn('Bordas detectadas muito grandes (>30% da imagem) — ignorando trim para segurança');
+        return imageBase64;
+      }
+
+      const result = await sharp(imageBuffer)
+        .extract({ left, top, width: cropWidth, height: cropHeight })
+        .resize(targetWidth, targetHeight, { fit: 'fill' })
+        .toBuffer();
+
+      return result.toString('base64');
+    } catch (err: any) {
+      this.logger.error(`Erro ao trimmar bordas: ${err.message}`);
+      return imageBase64;
+    }
+  }
+
   private async resolveLogoBuffer(logoSource: string): Promise<Buffer | null> {
     const dataUrlMatch = logoSource.match(/^data:[^;]+;base64,(.+)$/);
     if (dataUrlMatch) {

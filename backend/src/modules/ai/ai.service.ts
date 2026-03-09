@@ -100,6 +100,44 @@ const CATEGORY_INSTRUCTIONS: Record<PostCategory, string> = {
     'Crie um texto persuasivo para anúncio de serviço médico. Estrutura OBRIGATÓRIA: 1) Gancho com problema do paciente (ex: "Dor no joelho limitando sua vida?") → 2) Solução com 3 benefícios concretos em lista (✓) → 3) Prova social ou diferencial → 4) CTA FORTE na penúltima linha (exemplos: "👇 Toque para saber mais", "📱 Chame no WhatsApp", "🗓️ Agende sua avaliação agora", "Clique no link da bio") → 5) Identificação. O CTA é OBRIGATÓRIO e deve ser a última linha antes da identificação. Não prometa resultados garantidos.',
 };
 
+// Converte cor hexadecimal em descrição textual em português (evita que o Gemini renderize "#XXXXXX" como texto)
+function describeHexColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) * 60;
+    else if (max === gn) h = ((bn - rn) / d + 2) * 60;
+    else h = ((rn - gn) / d + 4) * 60;
+  }
+  if (s < 0.1) {
+    if (l < 0.2) return 'preto';
+    if (l < 0.4) return 'cinza escuro';
+    if (l < 0.6) return 'cinza';
+    if (l < 0.8) return 'cinza claro';
+    return 'branco';
+  }
+  let name = '';
+  if (h < 15 || h >= 345) name = 'vermelho';
+  else if (h < 45) name = 'laranja';
+  else if (h < 70) name = 'amarelo';
+  else if (h < 150) name = 'verde';
+  else if (h < 195) name = 'ciano';
+  else if (h < 260) name = 'azul';
+  else if (h < 290) name = 'roxo';
+  else name = 'rosa';
+  if (l < 0.3) name += ' escuro';
+  else if (l > 0.7) name += ' claro';
+  if (s > 0.7) name += ' vibrante';
+  return name.trim();
+}
+
 // Mapeamento de PostCategory para nome da pasta de referências
 const CATEGORY_FOLDER_MAP: Record<PostCategory, string> = {
   EDUCATIVO: 'Educativo',
@@ -335,29 +373,39 @@ Gere APENAS a legenda, sem explicações adicionais.`;
         {
           role: 'system',
           content:
-            'Você é especialista em marketing digital para profissionais de saúde no Brasil. Gere sugestões CRIATIVAS, VARIADAS e INOVADORAS de temas para posts de Instagram — nunca repetindo temas anteriores do profissional. Retorne SOMENTE um array JSON sem markdown nem explicações.',
+            'Você é especialista em marketing digital para profissionais de saúde no Brasil. Gere sugestões de temas para posts de Instagram. REGRAS ABSOLUTAS: (1) Gere temas APENAS da categoria solicitada — não misture categorias. (2) NUNCA comece o tema com o formato ("Carrossel...", "Infográfico...", "Post educativo...") — escreva apenas o assunto diretamente. (3) Nunca repita temas anteriores. Retorne SOMENTE um array JSON sem markdown nem explicações.',
         },
         {
           role: 'user',
           content: `CONTEXTO DO PROFISSIONAL:
 Profissão: ${profession}${specialty}${areasStr}
 
-RESTRIÇÃO CRÍTICA — TEMAS JÁ USADOS (não repita):
+RESTRIÇÃO CRÍTICA — TEMAS JÁ USADOS (não repita nenhum):
 ${recentThemes || 'Nenhum tema anterior'}
 
 TAREFA:
-Gere 10 sugestões NOVAS, CRIATIVAS e DIFERENTES de temas para posts de Instagram.
+Gere 10 sugestões de temas para posts de Instagram.
 
-Categoria: ${categoryLabel[category]}
-Formato: ${formatLabel[format]}
+CATEGORIA SELECIONADA: ${categoryLabel[category]}
+FORMATO SELECIONADO: ${formatLabel[format]}
 
-DIRETRIZES:
-- Cada tema deve ter 10-40 palavras, específico e detalhado
-- Varie radicalmente: educativo, emocional, prático, técnico, motivacional
-- Explora ângulos únicos: estatísticas, casos reais, tendências, curiosidades, prevenção
-- Nunca repita os temas listados acima
-- Considere a especialidade e áreas adicionais do profissional
-- Gere temas que tenham potencial viral e educacional
+REGRAS OBRIGATÓRIAS (violação = resultado rejeitado):
+1. TODOS os 10 temas devem ser da categoria "${category}" — ${categoryLabel[category]}.
+   - Se a categoria é EDUCATIVO: todos os temas devem ser conteúdo informativo, dicas, explicações, dados científicos acessíveis.
+   - Se a categoria é INSTITUCIONAL: todos os temas devem ser sobre serviços, procedimentos, diferenciais, agendamento.
+   - Se a categoria é MOTIVACIONAL: todos os temas devem ser inspiração, autocuidado, mensagens positivas.
+   - Se a categoria é CRIATIVO_ANUNCIO: todos os temas devem ser persuasivos com foco em conversão.
+2. PROIBIDO misturar categorias. NÃO sugira temas de outras categorias.
+3. PROIBIDO mencionar formatos no tema. NÃO escreva "Carrossel sobre...", "Infográfico mostrando...", "Post educativo sobre...". Escreva APENAS a ideia/assunto diretamente.
+   - ERRADO: "Carrossel explicando os sinais de diabetes"
+   - ERRADO: "Infográfico sobre pressão alta"
+   - ERRADO: "Post educativo sobre colesterol"
+   - CERTO: "5 sinais silenciosos de que seu colesterol está alto e você nem sabe"
+   - CERTO: "Por que dormir mal aumenta o risco de infarto em 45%"
+4. Cada tema deve ter 10-40 palavras, ser específico e com ângulo interessante
+5. Varie os ângulos: estatísticas, curiosidades, mitos vs verdades, prevenção, sintomas, hábitos
+6. Considere a especialidade e áreas do profissional
+7. Nunca repita os temas listados acima
 
 Retorne SOMENTE o array JSON: ["tema 1", "tema 2", ..., "tema 10"]`,
         },
@@ -480,11 +528,14 @@ Gere headline, subtítulo e legenda. Responda APENAS com o JSON.`;
     subtitle: string;
     caption: string;
     userPhotoUrl?: string;
+    contextPhotoUrl?: string;
   }): Promise<{ base64: string; mimeType: string }> {
-    const { theme, category, format, designStyle, brandKit, headline, subtitle, userPhotoUrl } = params;
+    const { theme, category, format, designStyle, brandKit, headline, subtitle, userPhotoUrl, contextPhotoUrl } = params;
 
     const primaryColor = brandKit.brandPrimaryColor || '#0e82eb';
     const secondaryColor = brandKit.brandSecondaryColor || '#fbbf24';
+    const primaryColorName = describeHexColor(primaryColor);
+    const secondaryColorName = describeHexColor(secondaryColor);
     const professionalName = brandKit.professionalName || 'Dr./Dra.';
     const profession = (brandKit.profession as string) || 'OUTRO';
     // Evita "CRM CRM 000129/RO" caso o número já contenha o conselho
@@ -562,58 +613,56 @@ Gere headline, subtítulo e legenda. Responda APENAS com o JSON.`;
 
     // Guia de estilo por tipo de variação (3 tipos radicalmente diferentes)
     const variationGuide: Record<string, string> = {
-      fotografico: `VARIAÇÃO 1 — EDITORIAL FOTOGRÁFICO:
-Referência exata: posts do Instagram de cirurgiões vasculares e dermatologistas brasileiros premium — paleta muted, fotografia de qualidade editorial, tipografia refinada.
+      fotografico: `VARIAÇÃO 1 — EDITORIAL FOTOGRÁFICO (com foto realista de fundo):
+═══ ESTE ESTILO É O ÚNICO QUE USA FOTOGRAFIA COMO FUNDO ═══
 
-FOTO (fundo, full-bleed borda a borda):
-- Foto realista e cinematográfica relacionada ao tema "${theme}"
-- Exemplos: corpo humano em close artístico (mãos, pernas, silhueta), ambiente clínico elegante, elemento da natureza relacionado ao tema, textura macro (folha, tecido, material orgânico)
-- Paleta muted e desaturada — não vibrante. Tons neutros, terrosos, azulados ou esverdeados, dependendo do tema
+FUNDO OBRIGATÓRIO: foto realista e cinematográfica que preenche 100% do canvas.
+- Foto relacionada ao tema "${theme}" — exemplos: corpo humano em close artístico (mãos, pernas, silhueta), ambiente clínico elegante, elemento da natureza, textura macro
+- Paleta muted e desaturada — tons neutros, terrosos, azulados ou esverdeados
 - SEM rostos de pessoas identificáveis
+- A foto É o fundo — full-bleed, borda a borda
 
-TEXTO (sem sombra):
-- Posicionar o texto na área da foto com contraste natural (zona mais escura ou mais clara)
-- Se necessário: gradiente linear suave (transparente → escuro ou transparente → claro) APENAS na metade onde o texto fica — nunca em toda a imagem
-- Mix tipográfico obrigatório: serif grande para o headline principal + italic serifado para a palavra-chave de destaque dentro do headline + sans-serif menor para o subtítulo
-- Exemplo de hierarquia: "Como a" (pequeno, sans-serif) + "dor *nas* pernas" (grande, serif com "nas" em italic) + "é causada pelas varizes?" (médio, sans-serif)
+TEXTO sobre a foto (sem sombra):
+- Posicionar onde há contraste natural (zona escura ou clara da foto)
+- Se necessário: gradiente linear suave (transparente → escuro) APENAS na metade onde o texto fica
+- Mix tipográfico: serif grande para headline + italic para palavra-chave + sans-serif menor para subtítulo
 
-IDENTIDADE (discreta — ver seção IDENTIFICAÇÃO abaixo):
-- Posição: canto superior esquerdo com logo + nome, OU rodapé esquerdo — nunca em dois lugares`,
+IDENTIDADE: rodapé discreto — nome + registro em tipografia pequena`,
 
-      tipografico: `VARIAÇÃO 2 — TIPOGRAFIA DOMINANTE:
-Referência exata: posts editoriais de médicos brasileiros com fundo limpo e tipografia como protagonista absoluto.
+      tipografico: `VARIAÇÃO 2 — TIPOGRAFIA DOMINANTE (SEM foto de fundo):
+═══ ESTE ESTILO NÃO USA FOTOGRAFIA. PROIBIDO FUNDO COM FOTO. ═══
 
-FUNDO (100% do canvas, sem exceção):
-- Cor sólida limpa que preenche TODO o canvas até os pixels da borda: off-white (#F5F2EE ou #FAFAFA), creme (#F0EBE1), cinza claro (#EEEEEE), ou branco puro
-- ZERO bordas, ZERO moldura, ZERO card flutuante — o fundo É a imagem inteira
-- Máximo 1 elemento fotográfico: foto de corpo/objeto com fundo recortado (sem fundo próprio), posicionada em um dos lados como elemento de composição, não como background
+FUNDO OBRIGATÓRIO: cor sólida clara e limpa — off-white, creme, cinza claro ou branco puro.
+- O fundo é APENAS uma cor sólida. PROIBIDO: foto de fundo, cenário, paisagem, pessoa, gradiente escuro
+- PROIBIDO qualquer imagem de fundo (pessoa dormindo, ambiente, close de corpo, etc.)
+- PERMITIDO no máximo: 1 elemento decorativo minimalista (linha fina, forma geométrica sutil) na cor da marca
 
-TIPOGRAFIA (protagonista):
-- Headline: mix serifado grande + italic em palavra(s) de destaque dentro do mesmo headline
-- Exemplo: "Varizes *aumentam* o risco de" (regular) + "TROMBOSE?" (bold/caps grande)
-- Subtítulo: sans-serif leve, corpo menor, espaçamento amplo
-- 1 detalhe decorativo: linha horizontal fina OU aspas tipográficas grandes em segundo plano
+TIPOGRAFIA É A PROTAGONISTA ABSOLUTA:
+- A tipografia é o elemento principal e dominante da arte — ocupa a maior parte do espaço
+- Headline: texto GRANDE em serif bold, cor escura (preto/grafite), com palavra-chave em italic
+- Exemplo: "Dormir mal está" (regular) + "*destruindo*" (italic grande) + "seu coração" (regular)
+- Subtítulo: sans-serif leve, corpo menor, cinza médio
+- 1 detalhe decorativo: linha horizontal fina OU aspas tipográficas grandes OU sublinhado na cor da marca
 
-IDENTIDADE (ultra-discreta — ver seção IDENTIFICAÇÃO abaixo):
-- Bloco de identidade no rodapé, mesmo tom que o fundo (escuro sobre claro) — sem sombra`,
+DIFERENCIAÇÃO: esta arte deve parecer uma revista/editorial — fundo claro limpo, texto escuro grande, sem foto.
+IDENTIDADE: rodapé em tipografia pequena, mesmo tom escuro, sem sombra`,
 
-      grafico: `VARIAÇÃO 3 — ARTE GRÁFICA:
-Referência exata: peças de marketing médico com identidade visual forte, cor da marca, elementos gráficos geométricos.
+      grafico: `VARIAÇÃO 3 — ARTE GRÁFICA (com cor da marca, sem foto realista):
+═══ ESTE ESTILO USA COR SÓLIDA DA MARCA + ELEMENTOS GRÁFICOS. PROIBIDO FOTO REALISTA DE FUNDO. ═══
 
-COMPOSIÇÃO:
-- Fundo: cor primária ${primaryColor} como base (tom profundo, não pastel)
-- Elementos gráficos geométricos sobrepostos em transparência: círculos, formas orgânicas, padrões de grade — em versão mais clara ou mais escura da mesma cor
-- Pode incluir elemento visual relacionado ao tema (ícone flat, ilustração médica estilizada, foto com tratamento de cor bold)
+FUNDO OBRIGATÓRIO: cor primária da marca (${primaryColorName}) como base — tom profundo, vibrante, não pastel.
+- PROIBIDO: foto realista de fundo, cenário, pessoa, paisagem. Este NÃO é um estilo fotográfico.
+- OBRIGATÓRIO: elementos gráficos geométricos sobrepostos em transparência (círculos, formas orgânicas, padrões de grade, ondas) em versão mais clara ou escura da mesma cor
+- PERMITIDO: ícones flat estilizados, ilustrações médicas simplificadas, formas abstratas relacionadas ao tema
+- O visual deve parecer uma peça de marketing/tráfego pago — bold, colorida, impactante
 
 TIPOGRAFIA:
-- Headline em branco ou creme sobre fundo escuro — sans-serif bold ou serif negrito de alto impacto
-- Subtítulo em cor secundária ${secondaryColor} ou versão clara da cor primária
+- Headline em BRANCO ou creme sobre o fundo colorido — sans-serif bold de alto impacto
+- Subtítulo em cor secundária da marca (${secondaryColorName}) ou versão clara da primária
 - Hierarquia clara: headline grande → subtítulo médio → identificação pequena
 
-IDENTIDADE (ver seção IDENTIFICAÇÃO abaixo):
-- Bloco de identidade no rodapé em branco ou creme. Logo/ícone no canto superior.
-
-RESULTADO: peça gráfica marcante, identidade visual imediata, pronta para tráfego pago`,
+DIFERENCIAÇÃO: esta arte deve parecer uma peça de marketing — fundo colorido vibrante, formas geométricas, sem foto realista.
+IDENTIDADE: rodapé em branco/creme. Canto superior esquerdo VAZIO (reservado para logo em pós-processamento).`,
 
     };
 
@@ -626,36 +675,36 @@ RESULTADO: peça gráfica marcante, identidade visual imediata, pronta para trá
       const styleTokens: Record<string, string> = {
         foto: `═══ SISTEMA VISUAL SÉRIE FOTOGRÁFICA — APLICAR IDENTICAMENTE EM TODOS OS SLIDES ═══
 FUNDO: foto/imagem em full-bleed com overlay escuro semitransparente (escuridão 40-60%) — paleta muted/cinematográfica. NUNCA fundo branco ou sólido sem imagem.
-TIPOGRAFIA: 100% BRANCA (#FFFFFF) ou creme (#F5EFE6). Títulos em serif bold grande. Destaques em italic. NUNCA texto escuro sobre fundo escuro.
-COR DE ACENTO: ${secondaryColor} apenas para elementos pontuais (linha, sublinhado, badge).
-HEADER FIXO (igual em todos): logo versão CLARA/BRANCA — canto superior esquerdo | número "0${slideNum}" — canto superior direito, branco, tipografia clean.
+TIPOGRAFIA: 100% BRANCA ou creme claro. Títulos em serif bold grande. Destaques em italic. NUNCA texto escuro sobre fundo escuro.
+COR DE ACENTO: cor secundária da marca (${secondaryColorName}) apenas para elementos pontuais (linha, sublinhado, badge).
+HEADER FIXO (igual em todos): CANTO SUPERIOR ESQUERDO TOTALMENTE VAZIO (reservado para logo em pós-processamento) | número "0${slideNum}" — canto superior direito, branco, tipografia clean.
 FOOTER FIXO (igual em todos): nome + especialidade + registro em tipografia pequena branca, canto inferior.
-PROIBIDO nesta série: fundo sólido sem imagem, tipografia escura, mudar a paleta entre slides, remover o número ou o logo.`,
+PROIBIDO nesta série: fundo sólido sem imagem, tipografia escura, mudar a paleta entre slides, escrever a palavra "logo" ou colocar qualquer símbolo/ícone no canto superior esquerdo.`,
 
         tipo: `═══ SISTEMA VISUAL SÉRIE TIPOGRÁFICA — APLICAR IDENTICAMENTE EM TODOS OS SLIDES ═══
-FUNDO: off-white SÓLIDO (#F5F2EE) — SEM EXCEÇÃO. NUNCA fundo escuro, NUNCA foto de fundo, NUNCA gradiente dramático.
-TIPOGRAFIA: títulos em serif bold ESCURO (#111111 ou #1A1A1A). Destaque italic em palavras-chave. Corpo em sans-serif leve #444. NUNCA texto branco nesta série.
-COR DE ACENTO: ${primaryColor} somente em palavras sublinhadas, linha separadora fina ou elemento mínimo de destaque.
-HEADER FIXO (igual em todos): logo versão ESCURA/COLORIDA — canto superior esquerdo | número "0${slideNum}" — canto superior direito, #666, discreto.
-SEPARADOR FIXO: linha horizontal de 1px em ${primaryColor} ou #DDD entre título e corpo — presente em TODOS os slides.
-FOOTER FIXO (igual em todos): nome + especialidade + registro, fonte pequena, cor #555.
-PROIBIDO nesta série: fundo colorido sólido, fundo preto, tipografia branca, remover a linha separadora, mudar para estilo escuro em qualquer slide.`,
+FUNDO: off-white SÓLIDO (tom creme/bege claro) — SEM EXCEÇÃO. NUNCA fundo escuro, NUNCA foto de fundo, NUNCA gradiente dramático.
+TIPOGRAFIA: títulos em serif bold ESCURO (preto ou quase preto). Destaque italic em palavras-chave. Corpo em sans-serif leve cinza. NUNCA texto branco nesta série.
+COR DE ACENTO: cor primária da marca (${primaryColorName}) somente em palavras sublinhadas, linha separadora fina ou elemento mínimo de destaque.
+HEADER FIXO (igual em todos): CANTO SUPERIOR ESQUERDO TOTALMENTE VAZIO (reservado para logo em pós-processamento) | número "0${slideNum}" — canto superior direito, cinza discreto.
+SEPARADOR FIXO: linha horizontal de 1px na cor primária da marca ou cinza claro entre título e corpo — presente em TODOS os slides.
+FOOTER FIXO (igual em todos): nome + especialidade + registro, fonte pequena, cor cinza.
+PROIBIDO nesta série: fundo colorido sólido, fundo preto, tipografia branca, remover a linha separadora, mudar para estilo escuro em qualquer slide, escrever a palavra "logo" ou colocar qualquer símbolo/ícone no canto superior esquerdo.`,
 
         graf: `═══ SISTEMA VISUAL SÉRIE GRÁFICA/MARCA — APLICAR IDENTICAMENTE EM TODOS OS SLIDES ═══
-FUNDO: ${primaryColor} SÓLIDO como base de 100% do canvas — SEM EXCEÇÃO em todos os 5 slides. NUNCA foto de fundo, NUNCA branco como base.
-ELEMENTOS DECORATIVOS FIXOS: formas geométricas simples (círculos, semicírculos, retângulos) na cor ${primaryColor} 20-30% mais clara ou mais escura, dispostas nos cantos/bordas como decoração discreta — IGUAL em todos os slides.
-TIPOGRAFIA: 100% BRANCA (#FFFFFF) para títulos. Subtítulos/corpo em branco 80% ou ${secondaryColor}. NUNCA tipografia escura nesta série.
-HEADER FIXO (igual em todos): logo versão CLARA/BRANCA — canto superior esquerdo | número "0${slideNum}" — canto superior direito, branco.
+FUNDO: cor primária da marca (${primaryColorName}, ${primaryColor}) SÓLIDO como base de 100% do canvas — SEM EXCEÇÃO em todos os 5 slides. NUNCA foto de fundo, NUNCA branco como base.
+ELEMENTOS DECORATIVOS FIXOS: formas geométricas simples (círculos, semicírculos, retângulos) em tom 20-30% mais claro ou mais escuro que a cor primária, dispostas nos cantos/bordas como decoração discreta — IGUAL em todos os slides.
+TIPOGRAFIA: 100% BRANCA para títulos. Subtítulos/corpo em branco 80% ou cor secundária da marca (${secondaryColorName}). NUNCA tipografia escura nesta série.
+HEADER FIXO (igual em todos): CANTO SUPERIOR ESQUERDO TOTALMENTE VAZIO (reservado para logo em pós-processamento) | número "0${slideNum}" — canto superior direito, branco.
 FOOTER FIXO (igual em todos): nome + especialidade + registro em tipografia pequena branca.
 COMPOSIÇÃO LIMPA: máximo 2 elementos gráficos por slide além do texto — não sobrecarregar o fundo.
-PROIBIDO nesta série: múltiplos estilos visuais misturados, fundo branco ou claro, tipografia escura, gradientes que distraem do conteúdo, excesso de elementos gráficos.`,
+PROIBIDO nesta série: múltiplos estilos visuais misturados, fundo branco ou claro, tipografia escura, gradientes que distraem do conteúdo, excesso de elementos gráficos, escrever a palavra "logo" ou colocar qualquer símbolo/ícone no canto superior esquerdo.`,
       };
 
       // Descrição do elemento visual coerente com a série
       const visualElementMap: Record<string, string> = {
         foto: 'elemento fotográfico: imagem médica/anatômica de alta qualidade em overlay com o fundo dark',
-        tipo: `ícone flat minimalista em linha fina (stroke), cor ${primaryColor}, tamanho discreto — sem preencher com cor sólida`,
-        graf: `forma geométrica simples (círculo ou semicírculo) em ${primaryColor} 25% mais claro/escuro, como já usado no sistema visual desta série`,
+        tipo: `ícone flat minimalista em linha fina (stroke), na cor primária da marca (${primaryColorName}), tamanho discreto — sem preencher com cor sólida`,
+        graf: `forma geométrica simples (círculo ou semicírculo) em tom 25% mais claro/escuro que a cor primária, como já usado no sistema visual desta série`,
       };
       const visualElement = visualElementMap[carStyle] ?? visualElementMap['foto'];
 
@@ -725,12 +774,13 @@ REFERÊNCIAS DE ESTILO (analise e replique o nível de qualidade):
 As imagens enviadas mostram o padrão visual alvo. Observe e replique: paleta muted/editorial, tipografia refinada com mix serifado+italic, fotos cinematográficas com overlay sutil, identidade discreta em small caps, ZERO sombra de texto. Este é o nível de qualidade esperado.
 
 REGRAS TÉCNICAS ABSOLUTAS (violação = arte rejeitada):
-1. SEM bordas brancas, SEM moldura, SEM frame, SEM card flutuante — a imagem NÃO tem borda de nenhum tipo
-2. O pixel mais externo de cada lado da imagem é parte do fundo/design, nunca branco ou cinza de preenchimento
-3. Fundo preenche 100% do canvas de borda a borda — válido para TODAS as variações
-4. CONTRASTE OBRIGATÓRIO: todo texto visível com contraste mínimo 4.5:1. Texto claro (branco/creme) em fundos escuros. Texto escuro (preto/#222) em fundos claros. NUNCA texto escuro sobre fundo escuro.
-5. PROIBIDO sombra de texto (text-shadow/drop-shadow) em qualquer variação. Legibilidade garantida por: (a) posicionar o texto em área da foto com contraste natural, (b) overlay/gradiente suave APENAS na região onde o texto aparece, ou (c) fundo sólido atrás do bloco de texto. Texto limpo, sem efeitos.${isCarrosselSlide ? `
-6. SLIDE ÚNICO OBRIGATÓRIO: Você está gerando o SLIDE ${carrosselSlideNum} de 5 de um carrossel do Instagram. Gere APENAS UMA imagem independente e completa. PROIBIDO gerar collage, grade, mosaico, painel com múltiplos frames, ou montagem que mostre outros slides dentro da imagem. Cada slide do carrossel é gerado e publicado separadamente.` : ''}
+1. BORDA ZERO: A arte NÃO tem borda, moldura, frame, margem branca, margem cinza ou card flutuante de nenhum tipo. Cada pixel da borda externa da imagem DEVE ser parte do design/fundo. Se o fundo é escuro, os pixels da borda são escuros. Se o fundo é claro, os pixels da borda são claros. NUNCA haverá uma faixa branca ou cinza separando o design das bordas da imagem.
+2. PREENCHIMENTO TOTAL: Fundo preenche 100% do canvas de borda a borda — válido para TODAS as variações. A imagem gerada ocupa todo o espaço disponível sem exceção.
+3. CONTRASTE OBRIGATÓRIO: todo texto visível com contraste mínimo 4.5:1. Texto claro (branco/creme) em fundos escuros. Texto escuro (preto/grafite) em fundos claros. NUNCA texto escuro sobre fundo escuro.
+4. PROIBIDO sombra de texto (text-shadow/drop-shadow) em qualquer variação. Legibilidade garantida por: (a) posicionar o texto em área da foto com contraste natural, (b) overlay/gradiente suave APENAS na região onde o texto aparece, ou (c) fundo sólido atrás do bloco de texto. Texto limpo, sem efeitos.
+5. PROIBIDO RENDERIZAR CÓDIGOS DE COR: NUNCA escreva códigos hexadecimais (ex: #FFFFFF, #0e82eb), códigos RGB, ou qualquer código técnico como texto visível na arte. Os códigos neste prompt são instruções técnicas para você, NÃO textos para exibir na imagem. Na arte, use apenas palavras e frases naturais.
+6. PROIBIDO ESCREVER "LOGO": NUNCA escreva a palavra "Logo", "Logotipo", "Marca" ou qualquer placeholder de marca como texto na arte. A logo será inserida automaticamente em pós-processamento. Deixe o canto superior esquerdo LIMPO e sem qualquer elemento.${isCarrosselSlide ? `
+7. SLIDE ÚNICO OBRIGATÓRIO: Você está gerando o SLIDE ${carrosselSlideNum} de 5 de um carrossel do Instagram. Gere APENAS UMA imagem independente e completa. PROIBIDO gerar collage, grade, mosaico, painel com múltiplos frames, ou montagem que mostre outros slides dentro da imagem. Cada slide do carrossel é gerado e publicado separadamente.` : ''}
 
 DIMENSÕES E FORMATO — REGRA ABSOLUTA:
 ${layoutInstructions[format]}
@@ -741,8 +791,9 @@ ${categoryVisualGuide[category]}
 ${variationGuide[designStyle] || variationGuide.fotografico}
 
 IDENTIDADE VISUAL DA MARCA:
-- Cor primária: ${primaryColor}
-- Cor secundária/destaque: ${secondaryColor}
+- Cor primária da marca: ${primaryColorName} (${primaryColor}) — use esta cor conforme indicado na variação
+- Cor secundária/destaque: ${secondaryColorName} (${secondaryColor}) — use para acentos e destaques
+- LEMBRETE: os códigos entre parênteses são referência técnica para você aplicar a cor correta. NUNCA os exiba como texto na arte.
 - ${fontInstruction}
 
 TEXTOS DO POST (aprovados pelo profissional — use exatamente como especificado):
@@ -761,7 +812,10 @@ IDENTIFICAÇÃO PROFISSIONAL (aparecer UMA ÚNICA VEZ na arte — nunca duplicar
 OBRIGATÓRIO:
 - Todos os textos com contraste garantido sobre o fundo
 - Elementos visuais 100% originais e sintéticos — NUNCA copiar rostos ou pessoas das referências
-- Resultado: imagem pronta para publicar no Instagram, que transmite autoridade médica e profissionalismo`;
+- Resultado: imagem pronta para publicar no Instagram, que transmite autoridade médica e profissionalismo
+
+⚠️ VERIFICAÇÃO FINAL DE DIFERENCIAÇÃO DE ESTILO:
+${designStyle === 'fotografico' || /^carrossel_foto/.test(designStyle) ? '→ Você está gerando o estilo FOTOGRÁFICO. A arte DEVE ter uma FOTO REALISTA como fundo (cenário, close de corpo, ambiente). Se não tem foto de fundo, REFAÇA.' : ''}${designStyle === 'tipografico' || /^carrossel_tipo/.test(designStyle) ? '→ Você está gerando o estilo TIPOGRÁFICO. A arte DEVE ter fundo CLARO SÓLIDO (branco/creme/cinza claro) com texto grande como protagonista. PROIBIDO foto de fundo, cenário escuro ou pessoa. Se tem foto de fundo, REFAÇA.' : ''}${designStyle === 'grafico' || /^carrossel_graf/.test(designStyle) ? '→ Você está gerando o estilo GRÁFICO. A arte DEVE ter fundo na COR DA MARCA com formas geométricas. PROIBIDO foto realista de fundo. Se tem foto realista, REFAÇA.' : ''}`;
 
     // Carregar imagens de referência: prioriza as da categoria, completa com as gerais
     const referenceImages = this.loadReferenceImages(category);
@@ -830,15 +884,58 @@ OBRIGATÓRIO para esta variação:
       }
     }
 
+    // Foto contextual (consultório, procedimento, equipamento) — inspiração de ambiente
+    if (contextPhotoUrl) {
+      try {
+        let contextBase64: string | undefined;
+        let contextMime = 'image/jpeg';
+
+        const ctxMatch = contextPhotoUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (ctxMatch) {
+          contextMime = ctxMatch[1];
+          contextBase64 = ctxMatch[2];
+        } else {
+          const res = await fetch(contextPhotoUrl);
+          if (res.ok) {
+            const ct = res.headers.get('content-type');
+            if (ct) contextMime = ct.split(';')[0];
+            contextBase64 = Buffer.from(await res.arrayBuffer()).toString('base64');
+          }
+        }
+
+        if (contextBase64) {
+          contentParts.push({ inlineData: { mimeType: contextMime, data: contextBase64 } });
+          contentParts.push({
+            text: `⚠️ FOTO CONTEXTUAL DO PROFISSIONAL — OBRIGATÓRIO USAR:
+A imagem acima é uma foto REAL do ambiente do profissional (consultório, equipamento, procedimento, etc.).
+
+VOCÊ DEVE INCORPORAR ESTA IMAGEM NA ARTE FINAL. Isso é OBRIGATÓRIO, não opcional.
+
+Como incorporar:
+- INTEGRE visualmente a foto na composição da arte (como fundo, como elemento de destaque ou como parte do layout)
+- Se o estilo é FOTOGRÁFICO: use a foto como cenário/fundo principal da arte, sobrepondo os textos
+- Se o estilo é TIPOGRÁFICO: use a foto em uma seção da arte (metade, terço, ou como fundo com overlay escuro + textos por cima)
+- Se o estilo é GRÁFICO: use elementos visuais da foto como referência e inclua a foto em um recorte estilizado dentro da composição
+- A foto DEVE ser reconhecível na arte final — o usuário precisa ver que sua foto foi usada
+- Mantenha a qualidade e proporção da foto, não distorça`,
+          });
+          this.logger.log(`[${designStyle}] Foto contextual carregada (${contextMime})`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`[${designStyle}] Falha ao carregar foto contextual: ${err?.message}`);
+      }
+    }
+
     // Logo: NÃO enviar para a IA — será aplicada via overlay com Sharp no pós-processamento
     // Instrução para a IA deixar o canto limpo para o overlay
-    if (brandKit.logoUrl || brandKit.logoWhiteUrl) {
-      contentParts.push({
-        text: `⚠️ LOGO: NÃO inclua logo, logotipo, marca d'água ou qualquer símbolo de marca na arte.
-Deixe o canto superior esquerdo LIMPO e sem elementos visuais (sem texto, sem ícone).
-A logo será adicionada automaticamente em pós-processamento.`,
-      });
-    }
+    contentParts.push({
+      text: `⚠️ REGRA CRÍTICA SOBRE LOGO/LOGOTIPO:
+- NÃO inclua logo, logotipo, marca d'água, ícone de marca ou qualquer símbolo de identidade visual na arte.
+- NÃO escreva a palavra "Logo", "Logotipo" ou "Marca" como texto na imagem.
+- Deixe o canto superior esquerdo COMPLETAMENTE VAZIO — sem texto, sem ícone, sem forma decorativa nessa área (aproximadamente 150x80 pixels a partir do canto).
+- A logo real será adicionada automaticamente em pós-processamento via software.
+- Se o prompt mencionar "logo" em alguma instrução de layout, IGNORE e deixe o espaço vazio.`,
+    });
 
     contentParts.push({ text: prompt });
 
@@ -918,11 +1015,14 @@ Analise cuidadosamente e preserve EXATAMENTE:
 - Acessórios marcantes (brincos, óculos, piercings, etc.) — preservar exatamente
 Esta pessoa DEVE ser reconhecível na foto gerada. Não substitua por uma pessoa genérica.
 
-EXPRESSÃO FACIAL — REGRA CRÍTICA:
-Analise as fotos de referência e identifique o padrão de expressão natural desta pessoa.
-- Se as fotos de referência NÃO mostram sorriso com dentes expostos: NUNCA gere sorriso com dentes. Use sorriso fechado suave ou expressão neutra e confiante.
-- Se as fotos mostram sorriso com dentes: pode reproduzir o mesmo sorriso.
-- PROIBIDO: inventar ou exagerar expressões que não aparecem nas referências.
+EXPRESSÃO FACIAL — REGRA CRÍTICA (PRIORIDADE MÁXIMA):
+Dentes são o elemento MAIS DIFÍCIL de gerar realisticamente. Na dúvida, SEMPRE use boca fechada.
+Regras absolutas:
+1. PADRÃO OBRIGATÓRIO: expressão confiante e serena com BOCA FECHADA (lábios unidos). Sorriso sutil apenas com os lábios, SEM mostrar dentes.
+2. ÚNICA EXCEÇÃO: se TODAS as fotos de referência mostram sorriso ABERTO com dentes claramente visíveis, SOMENTE nesse caso pode reproduzir — mas copie os dentes EXATAMENTE como aparecem nas referências (formato, alinhamento, cor).
+3. PROIBIDO: inventar dentes que não aparecem nas referências. Dentes inventados ficam artificiais e irreais.
+4. PROIBIDO: exagerar sorriso — se a pessoa tem sorriso discreto nas fotos, mantenha discreto.
+5. Se houver QUALQUER dúvida sobre a expressão: boca fechada, sorriso leve com lábios unidos.
 
 CENÁRIO DESEJADO:
 ${stylePrompt}

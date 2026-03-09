@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Sparkles, LayoutDashboard, PlusCircle, Camera, User, LogOut } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Sparkles, LayoutDashboard, PlusCircle, Camera, User, LogOut, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import api from '@/lib/api'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -14,6 +16,12 @@ const navigation = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    // Checar se o user é admin para mostrar o link do painel admin
+    api.get('/admin/overview').then(() => setIsAdmin(true)).catch(() => {})
+  }, [])
 
   function handleLogout() {
     localStorage.removeItem('clinify_token')
@@ -54,7 +62,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-gray-100 space-y-1">
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 w-full transition-all duration-150"
+            >
+              <Shield className="h-5 w-5" />
+              Painel Admin
+            </Link>
+          )}
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 w-full transition-all duration-150"

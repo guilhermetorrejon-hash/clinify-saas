@@ -74,22 +74,27 @@ function getStylePrompts(profession: Profession): string[] {
   const outfitOptions = outfitVariations[profession] || outfitVariations.OUTRO;
   const e = env[profession] || env.OUTRO;
 
+  // Expressão padrão: boca FECHADA para evitar dentes artificiais
+  const expr = 'sorriso leve e sutil com lábios fechados (sem mostrar dentes), olhar confiante e sereno';
+  const exprFirm = 'expressão firme e profissional com boca fechada, olhar direto para câmera';
+  const exprCalm = 'expressão serena e acolhedora com lábios fechados, sorriso sutil';
+
   return [
     // ── Estúdio (3 variações com roupas variadas) ──────────────────────────────
-    `FOTO DE ESTÚDIO PROFISSIONAL. Headshot frontal, ${outfitOptions[0]}, olhando diretamente para a câmera, expressão confiante e serena. Fundo: cinza neutro médio (#808080) de estúdio fotográfico, completamente liso e uniforme, sem nenhum elemento do ambiente ao fundo. Iluminação suave de estúdio com softbox lateral, sem sombras duras.`,
-    `FOTO DE ESTÚDIO PROFISSIONAL. Headshot frontal, ${outfitOptions[1]}, olhando para a câmera, expressão segura e profissional. Fundo: branco puro de estúdio, completamente liso, sem nenhum ambiente visível ao fundo. Iluminação de três pontos profissional, imagem nítida.`,
-    `FOTO DE ESTÚDIO PROFISSIONAL. Retrato 3/4 (cintura para cima), levemente virado, ${outfitOptions[2]}, expressão tranquila e acolhedora. Fundo: cinza suave gradiente (#9a9a9a → #d0d0d0) de estúdio fotográfico, sem nenhum ambiente ao fundo. Iluminação difusa profissional.`,
+    `FOTO DE ESTÚDIO PROFISSIONAL. Headshot frontal, ${outfitOptions[0]}, ${expr}. Fundo: cinza neutro médio de estúdio fotográfico, completamente liso e uniforme, sem nenhum elemento do ambiente ao fundo. Iluminação suave de estúdio com softbox lateral, sem sombras duras.`,
+    `FOTO DE ESTÚDIO PROFISSIONAL. Headshot frontal, ${outfitOptions[1]}, ${exprFirm}. Fundo: branco puro de estúdio, completamente liso, sem nenhum ambiente visível ao fundo. Iluminação de três pontos profissional, imagem nítida.`,
+    `FOTO DE ESTÚDIO PROFISSIONAL. Retrato 3/4 (cintura para cima), levemente virado, ${outfitOptions[2]}, ${exprCalm}. Fundo: cinza suave gradiente de estúdio fotográfico, sem nenhum ambiente ao fundo. Iluminação difusa profissional.`,
 
     // ── Ambiente profissional (com roupas variadas) ──────────────────────────────
-    `Headshot profissional frontal, ${outfitOptions[0]}, olhando para a câmera, expressão atenta e confiante, ${e}`,
-    `Em pé, postura confiante, braços cruzados, ${outfitOptions[2]}, olhando para a câmera, expressão firme e profissional, ${e}`,
-    `Sentado(a) em mesa/escrivaninha em posição profissional, ${outfitOptions[1]}, olhando para a câmera, expressão concentrada e confiante, ${e}`,
-    `Retrato 3/4 olhando levemente para o lado, expressão pensativa e confiante, ${outfitOptions[3] || outfitOptions[2]}, ${e}`,
+    `Headshot profissional frontal, ${outfitOptions[0]}, ${expr}, ${e}`,
+    `Em pé, postura confiante, braços cruzados, ${outfitOptions[2]}, ${exprFirm}, ${e}`,
+    `Sentado(a) em mesa/escrivaninha em posição profissional, ${outfitOptions[1]}, ${exprCalm}, ${e}`,
+    `Retrato 3/4 olhando levemente para o lado, expressão pensativa com boca fechada, ${outfitOptions[3] || outfitOptions[2]}, ${e}`,
 
     // ── Variações de enquadramento/ambiente (com mais variedade de roupa) ───────
-    `Retrato próximo (close-up do rosto), ${outfitOptions[4] || outfitOptions[0]}, expressão acolhedora e serena, fundo desfocado neutro cinza claro`,
-    `Ambiente externo com luz natural suave, parque ou área arborizada ao fundo desfocado, ${outfitOptions[2]}, postura casual mas profissional, expressão tranquila e confiante`,
-    `Em pé encostado(a) em parede branca ou bege clean, ${outfitOptions[3] || outfitOptions[1]}, braços cruzados ou mãos nos bolsos, expressão segura e profissional`,
+    `Retrato próximo (close-up do rosto), ${outfitOptions[4] || outfitOptions[0]}, ${exprCalm}, fundo desfocado neutro cinza claro`,
+    `Ambiente externo com luz natural suave, parque ou área arborizada ao fundo desfocado, ${outfitOptions[2]}, postura casual mas profissional, ${expr}`,
+    `Em pé encostado(a) em parede branca ou bege clean, ${outfitOptions[3] || outfitOptions[1]}, braços cruzados ou mãos nos bolsos, ${exprFirm}`,
   ];
 }
 

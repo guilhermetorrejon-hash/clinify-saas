@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Sparkles, ChevronRight, Camera, User } from 'lucide-react'
+import { ArrowLeft, Sparkles, ChevronRight, Camera, User, Star, ImagePlus, X } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 
 const categories = [
@@ -46,7 +47,33 @@ const carouselStyles = [
   },
 ]
 
-type Step = 'category' | 'format' | 'carouselStyle' | 'photo' | 'theme'
+type Step = 'category' | 'format' | 'carouselStyle' | 'photo' | 'contextPhoto' | 'theme'
+
+interface AvailablePhoto {
+  url: string
+  isFavorite: boolean
+}
+
+function resizeImageToBase64(file: File, maxSide = 1024): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.onerror = reject
+      img.src = e.target?.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
 export default function NovoPostPage() {
   const router = useRouter()
@@ -56,11 +83,35 @@ export default function NovoPostPage() {
   const [format, setFormat] = useState('')
   const [carouselStyle, setCarouselStyle] = useState('')
   const [usePhoto, setUsePhoto] = useState(true)
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null)
+  const [contextPhotoDataUrl, setContextPhotoDataUrl] = useState<string | null>(null)
+  const [availablePhotos, setAvailablePhotos] = useState<AvailablePhoto[]>([])
+  const [loadingPhotos, setLoadingPhotos] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [suggestingThemes, setSuggestingThemes] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
+  const contextFileRef = useRef<HTMLInputElement>(null)
 
+  // Buscar fotos disponíveis quando entrar no step de foto
+  useEffect(() => {
+    if (step === 'photo' && availablePhotos.length === 0 && !loadingPhotos) {
+      setLoadingPhotos(true)
+      api.get('/photos').then(({ data }) => {
+        const completed = (data as any[]).filter((s: any) => s.status === 'COMPLETED')
+        const photos: AvailablePhoto[] = []
+        for (const session of completed) {
+          const favs: string[] = session.favoritePhotoUrls || []
+          for (const url of session.generatedPhotoUrls) {
+            photos.push({ url, isFavorite: favs.includes(url) })
+          }
+        }
+        // Favoritas primeiro
+        photos.sort((a, b) => (a.isFavorite === b.isFavorite ? 0 : a.isFavorite ? -1 : 1))
+        setAvailablePhotos(photos)
+      }).catch(() => {}).finally(() => setLoadingPhotos(false))
+    }
+  }, [step, availablePhotos.length, loadingPhotos])
 
   const selectedCategory = categories.find((c) => c.value === category)
   const selectedFormat = formats.find((f) => f.value === format)
@@ -89,9 +140,22 @@ export default function NovoPostPage() {
     setStep('photo')
   }
 
-  function handlePhotoChoice(use: boolean) {
+  function handlePhotoChoice(use: boolean, photoUrl?: string) {
     setUsePhoto(use)
-    setStep('theme')
+    setSelectedPhotoUrl(photoUrl || null)
+    setStep('contextPhoto')
+  }
+
+  async function handleContextPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Foto muito grande (máx 5MB)')
+      return
+    }
+    const dataUrl = await resizeImageToBase64(file)
+    setContextPhotoDataUrl(dataUrl)
+    e.target.value = ''
   }
 
   async function handleSuggestThemes() {
@@ -119,7 +183,9 @@ export default function NovoPostPage() {
     try {
       const payload: Record<string, string> = { theme, category, format }
       if (!usePhoto) payload.userPhotoUrl = 'none'
+      else if (selectedPhotoUrl) payload.userPhotoUrl = selectedPhotoUrl
       if (isCarousel && carouselStyle) payload.carouselStyle = carouselStyle
+      if (contextPhotoDataUrl) payload.contextPhotoUrl = contextPhotoDataUrl
       const { data } = await api.post('/posts', payload)
       router.push(`/posts/${data.id}`)
     } catch (err: any) {
@@ -130,21 +196,26 @@ export default function NovoPostPage() {
 
   // Step labels dinâmicos
   const steps = isCarousel
-    ? ['Categoria', 'Formato', 'Estilo', 'Foto', 'Tema']
-    : ['Categoria', 'Formato', 'Foto', 'Tema']
+    ? ['Categoria', 'Formato', 'Estilo', 'Foto', 'Contexto', 'Tema']
+    : ['Categoria', 'Formato', 'Foto', 'Contexto', 'Tema']
 
   function getStepNum(): number {
     const order = isCarousel
-      ? ['category', 'format', 'carouselStyle', 'photo', 'theme']
-      : ['category', 'format', 'photo', 'theme']
+      ? ['category', 'format', 'carouselStyle', 'photo', 'contextPhoto', 'theme']
+      : ['category', 'format', 'photo', 'contextPhoto', 'theme']
     return order.indexOf(step) + 1
   }
 
   function resetFrom(target: Step) {
     setTheme('')
     setSuggestions([])
-    if (['category', 'format', 'carouselStyle'].includes(target)) {
+    if (['category', 'format', 'carouselStyle', 'photo'].includes(target)) {
       setUsePhoto(true)
+      setSelectedPhotoUrl(null)
+      setContextPhotoDataUrl(null)
+    }
+    if (target === 'contextPhoto') {
+      setContextPhotoDataUrl(null)
     }
     if (['category', 'format'].includes(target)) {
       setCarouselStyle('')
@@ -209,11 +280,18 @@ export default function NovoPostPage() {
               {selectedCarouselStyle.preview} {selectedCarouselStyle.label} ✕
             </button>
           )}
-          {step === 'theme' && (
+          {(step === 'contextPhoto' || step === 'theme') && (
             <button type="button" onClick={() => resetFrom('photo')}
               className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors">
               <Camera className="h-3 w-3" />
-              {usePhoto ? 'Com foto' : 'Sem foto'} ✕
+              {usePhoto ? (selectedPhotoUrl ? 'Foto escolhida' : 'Com foto') : 'Sem foto'} ✕
+            </button>
+          )}
+          {step === 'theme' && contextPhotoDataUrl && (
+            <button type="button" onClick={() => resetFrom('contextPhoto')}
+              className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors">
+              <ImagePlus className="h-3 w-3" />
+              Foto de contexto ✕
             </button>
           )}
         </div>
@@ -283,7 +361,7 @@ export default function NovoPostPage() {
         <div className="space-y-4">
           <div>
             <label className="text-sm font-semibold text-gray-700">Usar sua foto na arte?</label>
-            <p className="text-xs text-gray-500 mt-0.5">A foto sera puxada do seu perfil ou Foto Pro automaticamente</p>
+            <p className="text-xs text-gray-500 mt-0.5">Escolha uma foto ou deixe a IA selecionar automaticamente</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -292,8 +370,8 @@ export default function NovoPostPage() {
               <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto">
                 <User className="h-6 w-6 text-blue-600" />
               </div>
-              <p className="font-semibold text-gray-900 text-sm">Sim, usar minha foto</p>
-              <p className="text-xs text-gray-500">Ideal para posts fotograficos</p>
+              <p className="font-semibold text-gray-900 text-sm">Sim, automatico</p>
+              <p className="text-xs text-gray-500">IA escolhe a melhor foto</p>
             </button>
             <button type="button" onClick={() => handlePhotoChoice(false)}
               className="p-5 rounded-xl border-2 border-gray-100 hover:border-gray-400 hover:bg-gray-50 transition-all text-center space-y-2">
@@ -303,6 +381,110 @@ export default function NovoPostPage() {
               <p className="font-semibold text-gray-900 text-sm">Sem foto</p>
               <p className="text-xs text-gray-500">Arte somente com design e textos</p>
             </button>
+          </div>
+
+          {/* Mini-galeria para escolher foto específica */}
+          {availablePhotos.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ou escolha uma foto específica</p>
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
+                {availablePhotos.map((photo, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handlePhotoChoice(true, photo.url)}
+                    className={cn(
+                      'relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all hover:opacity-90',
+                      selectedPhotoUrl === photo.url ? 'border-blue-500 ring-2 ring-blue-200' : 'border-transparent'
+                    )}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo.url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                    {photo.isFavorite && (
+                      <div className="absolute top-1 right-1">
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {loadingPhotos && (
+            <p className="text-xs text-gray-400 text-center">Carregando fotos...</p>
+          )}
+        </div>
+      )}
+
+      {/* Step: Foto contextual */}
+      {step === 'contextPhoto' && (
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-gray-700">Foto de contexto (opcional)</label>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Foto do seu consultório, procedimento ou equipamento para inspirar o fundo da arte
+            </p>
+          </div>
+
+          <input
+            ref={contextFileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={handleContextPhotoUpload}
+          />
+
+          {contextPhotoDataUrl ? (
+            <div className="relative w-48 mx-auto">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={contextPhotoDataUrl}
+                alt="Foto contextual"
+                className="w-full aspect-square object-cover rounded-xl border border-gray-200"
+              />
+              <button
+                type="button"
+                onClick={() => setContextPhotoDataUrl(null)}
+                className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors"
+              >
+                <X className="h-3 w-3 text-white" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => contextFileRef.current?.click()}
+              className="w-full flex flex-col items-center gap-3 p-8 rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"
+            >
+              <div className="h-12 w-12 rounded-xl bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center transition-colors">
+                <ImagePlus className="h-6 w-6 text-gray-400 group-hover:text-blue-500" />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-gray-600 group-hover:text-blue-700 text-sm">Adicionar foto de contexto</p>
+                <p className="text-xs text-gray-400 mt-0.5">Consultório, procedimento, equipamento...</p>
+              </div>
+            </button>
+          )}
+
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => { setContextPhotoDataUrl(null); setStep('theme') }}
+            >
+              Pular
+            </Button>
+            {contextPhotoDataUrl && (
+              <Button
+                type="button"
+                className="flex-1"
+                onClick={() => setStep('theme')}
+              >
+                Continuar
+              </Button>
+            )}
           </div>
         </div>
       )}
