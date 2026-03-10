@@ -182,6 +182,50 @@ export class LogoOverlayService {
     }
   }
 
+  /**
+   * Converte uma logo para branca, preservando a transparência/forma.
+   * Útil quando o usuário não subiu uma versão branca da logo.
+   */
+  async makeLogoWhite(logoSource: string): Promise<string | null> {
+    const sharp = await this.getSharp();
+    if (!sharp) return null;
+
+    try {
+      const logoBuffer = await this.resolveLogoBuffer(logoSource);
+      if (!logoBuffer) return null;
+
+      // Converte todos os pixels não-transparentes para branco
+      const metadata = await sharp(logoBuffer).metadata();
+      const { data, info } = await sharp(logoBuffer)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      // Percorre cada pixel: se tem opacidade, torna branco
+      for (let i = 0; i < data.length; i += 4) {
+        const alpha = data[i + 3];
+        if (alpha > 0) {
+          data[i] = 255;     // R
+          data[i + 1] = 255; // G
+          data[i + 2] = 255; // B
+          // mantém alpha original
+        }
+      }
+
+      const whiteLogoBuffer = await sharp(data, {
+        raw: { width: info.width, height: info.height, channels: 4 },
+      })
+        .png()
+        .toBuffer();
+
+      this.logger.log('Logo convertida para branca automaticamente');
+      return `data:image/png;base64,${whiteLogoBuffer.toString('base64')}`;
+    } catch (err: any) {
+      this.logger.error(`Erro ao converter logo para branca: ${err.message}`);
+      return null;
+    }
+  }
+
   private async resolveLogoBuffer(logoSource: string): Promise<Buffer | null> {
     const dataUrlMatch = logoSource.match(/^data:[^;]+;base64,(.+)$/);
     if (dataUrlMatch) {

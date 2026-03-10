@@ -759,14 +759,14 @@ ${slideContent[slideNum] || slideContent[1]}
       : isCarrosselConclusionSlide
         ? `TEXTO DE FECHAMENTO: mensagem de conclusão ou CTA impactante (não repetir o headline da capa).`
         : headline
-          ? `HEADLINE APROVADO PELO PROFISSIONAL (use EXATAMENTE): "${headline}"`
-          : `Crie um headline de alto impacto (4-8 palavras) relacionado ao tema.`;
+          ? `HEADLINE (COPIE LETRA POR LETRA, SEM ALTERAR NADA): "${headline}"`
+          : `Crie um headline de alto impacto (4-8 palavras) em PORTUGUÊS DO BRASIL.`;
 
     const subtitleInstruction = isCarrosselContentSlide || isCarrosselConclusionSlide
-      ? `Subtítulo opcional breve.`
+      ? `Subtítulo opcional breve em PORTUGUÊS DO BRASIL.`
       : subtitle
-        ? `SUBTÍTULO APROVADO (use EXATAMENTE): "${subtitle}"`
-        : `Subtítulo de apoio opcional — frase curta.`;
+        ? `SUBTÍTULO (COPIE LETRA POR LETRA, SEM ALTERAR NADA): "${subtitle}"`
+        : `Subtítulo de apoio opcional — frase curta em PORTUGUÊS DO BRASIL.`;
 
     const prompt = `Crie um post profissional para Instagram de saúde — padrão de agência de marketing médico premium do Brasil.
 
@@ -796,7 +796,14 @@ IDENTIDADE VISUAL DA MARCA:
 - LEMBRETE: os códigos entre parênteses são referência técnica para você aplicar a cor correta. NUNCA os exiba como texto na arte.
 - ${fontInstruction}
 
-TEXTOS DO POST (aprovados pelo profissional — use exatamente como especificado):
+═══════════════════════════════════════════════════════
+TEXTOS DO POST — REGRA MAIS IMPORTANTE DE TODAS:
+Os textos abaixo foram aprovados pelo profissional. Copie CARACTERE POR CARACTERE.
+PROIBIDO traduzir, parafrasear, resumir, mudar idioma ou inventar texto.
+O idioma é PORTUGUÊS DO BRASIL. Se o headline diz "você", escreva "você" — NUNCA "you".
+Se o headline diz "Presencial ou online: qual é o seu?", escreva EXATAMENTE isso.
+Qualquer alteração nos textos = arte REJEITADA.
+═══════════════════════════════════════════════════════
 - Tema: "${theme}"
 - ${headlineInstruction}
 - ${subtitleInstruction}

@@ -155,17 +155,15 @@ export class PostGenerationProcessor extends WorkerHost {
 
               let logoSource: string | null = null;
               if (isDarkVariation) {
-                // Fundo escuro → OBRIGATÓRIO usar logo branca/clara
+                // Fundo escuro → usar logo branca (cadastrada ou gerada automaticamente)
                 logoSource = brandKit.logoWhiteUrl || null;
-                if (!logoSource) {
-                  this.logger.warn(`[${postId}] Variação escura (${designStyle}) sem logoWhiteUrl — pulando overlay para evitar logo escura em fundo escuro`);
+                if (!logoSource && brandKit.logoUrl) {
+                  this.logger.log(`[${postId}] Sem logoWhiteUrl — convertendo logo para branca automaticamente`);
+                  logoSource = await this.logoOverlay.makeLogoWhite(brandKit.logoUrl);
                 }
               } else {
                 // Fundo claro → usar logo padrão (escura/colorida)
                 logoSource = brandKit.logoUrl || null;
-                if (!logoSource) {
-                  this.logger.warn(`[${postId}] Variação clara (${designStyle}) sem logoUrl — pulando overlay`);
-                }
               }
 
               if (logoSource) {
