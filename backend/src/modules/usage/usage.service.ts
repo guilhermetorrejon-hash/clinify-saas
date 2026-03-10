@@ -70,14 +70,19 @@ export class UsageService {
       );
     }
 
-    // 3. Contar quantas vezes o usuário já usou este recurso no período atual
-    const periodStart = subscription.currentPeriodStart || subscription.createdAt;
+    // 3. Contar quantas vezes o usuário já usou este recurso
+    // PHOTO é pacote fixo da assinatura (não reseta por mês)
+    // Demais recursos resetam a cada período mensal
+    const isLifetime = type === 'PHOTO';
+    const countSince = isLifetime
+      ? subscription.createdAt
+      : (subscription.currentPeriodStart || subscription.createdAt);
 
     const usedCount = await this.prisma.usageRecord.count({
       where: {
         userId,
         type,
-        createdAt: { gte: periodStart },
+        createdAt: { gte: countSince },
       },
     });
 
@@ -89,10 +94,10 @@ export class UsageService {
     // 5. Se já atingiu o limite, bloquear
     if (usedCount >= limit) {
       const label = USAGE_LABELS[type];
-      throw new ForbiddenException(
-        `Você atingiu o limite de ${limit} ${label} do plano ${plan.name}. ` +
-        `Faça upgrade para ter mais ${label}.`,
-      );
+      const msg = isLifetime
+        ? `Você usou todas as ${limit} ${label} incluídas no plano ${plan.name}. Faça upgrade ou compre avulso para gerar mais.`
+        : `Você atingiu o limite de ${limit} ${label} do plano ${plan.name} neste mês. Faça upgrade para ter mais ${label}.`;
+      throw new ForbiddenException(msg);
     }
 
     this.logger.debug(`[${userId}] ${type}: ${usedCount + 1}/${limit}`);
@@ -126,13 +131,15 @@ export class UsageService {
     const periodStart = subscription.currentPeriodStart || subscription.createdAt;
     const plan = subscription.plan;
 
-    // Contar cada tipo de uso no período
+    // Contar cada tipo de uso
+    // PHOTO é pacote fixo (conta desde início da assinatura), demais resetam por mês
     const types: UsageType[] = ['POST', 'CAROUSEL', 'PHOTO', 'THEME_SUGGESTION', 'CAPTION_REWRITE'];
 
     const counts = await Promise.all(
       types.map(async (type) => {
+        const countSince = type === 'PHOTO' ? subscription.createdAt : periodStart;
         const count = await this.prisma.usageRecord.count({
-          where: { userId, type, createdAt: { gte: periodStart } },
+          where: { userId, type, createdAt: { gte: countSince } },
         });
         return { type, count };
       }),
