@@ -531,6 +531,8 @@ Gere headline, subtítulo e legenda. Responda APENAS com o JSON.`;
     contextPhotoUrl?: string;
   }): Promise<{ base64: string; mimeType: string }> {
     const { theme, category, format, designStyle, brandKit, headline, subtitle, userPhotoUrl, contextPhotoUrl } = params;
+    // Flag será atualizada para true SOMENTE se a foto contextual for carregada com sucesso
+    let hasContextPhoto = false;
 
     const primaryColor = brandKit.brandPrimaryColor || '#0e82eb';
     const secondaryColor = brandKit.brandSecondaryColor || '#fbbf24';
@@ -611,15 +613,17 @@ Gere headline, subtítulo e legenda. Responda APENAS com o JSON.`;
 - Transmite urgência e valor — como anúncio de clínica premium`,
     };
 
+    // Envolvido em função para ser construído DEPOIS de saber se a foto contextual carregou
+    const buildPromptText = () => {
     // Guia de estilo por tipo de variação (3 tipos radicalmente diferentes)
     const variationGuide: Record<string, string> = {
       fotografico: `VARIAÇÃO 1 — EDITORIAL FOTOGRÁFICO (com foto realista de fundo):
 ═══ ESTE ESTILO É O ÚNICO QUE USA FOTOGRAFIA COMO FUNDO ═══
 
 FUNDO OBRIGATÓRIO: foto realista e cinematográfica que preenche 100% do canvas.
-- Foto relacionada ao tema "${theme}" — exemplos: corpo humano em close artístico (mãos, pernas, silhueta), ambiente clínico elegante, elemento da natureza, textura macro
+${hasContextPhoto ? `- ⚠️ O PROFISSIONAL ENVIOU UMA FOTO CONTEXTUAL — USE-A COMO FUNDO PRINCIPAL DA ARTE (full-bleed, borda a borda). Aplique overlay escuro semitransparente (40-60%) sobre a foto para garantir legibilidade do texto. A foto contextual TEM PRIORIDADE sobre qualquer foto gerada.` : `- Foto relacionada ao tema "${theme}" — exemplos: corpo humano em close artístico (mãos, pernas, silhueta), ambiente clínico elegante, elemento da natureza, textura macro`}
 - Paleta muted e desaturada — tons neutros, terrosos, azulados ou esverdeados
-- SEM rostos de pessoas identificáveis
+- SEM rostos de pessoas identificáveis (exceto foto do profissional se enviada)
 - A foto É o fundo — full-bleed, borda a borda
 
 TEXTO sobre a foto (sem sombra):
@@ -629,13 +633,20 @@ TEXTO sobre a foto (sem sombra):
 
 IDENTIDADE: rodapé discreto — nome + registro em tipografia pequena`,
 
-      tipografico: `VARIAÇÃO 2 — TIPOGRAFIA DOMINANTE (SEM foto de fundo):
-═══ ESTE ESTILO NÃO USA FOTOGRAFIA. PROIBIDO FUNDO COM FOTO. ═══
+      tipografico: `VARIAÇÃO 2 — TIPOGRAFIA DOMINANTE${hasContextPhoto ? ' (com foto contextual integrada)' : ' (SEM foto de fundo)'}:
+${hasContextPhoto ? `═══ ESTE ESTILO PRIORIZA TIPOGRAFIA, MAS O PROFISSIONAL ENVIOU UMA FOTO CONTEXTUAL QUE DEVE SER INCLUÍDA ═══
+
+LAYOUT OBRIGATÓRIO COM FOTO CONTEXTUAL:
+- Divida a arte em duas zonas: uma zona para a FOTO CONTEXTUAL e outra para a TIPOGRAFIA
+- Opção A: foto contextual ocupa 40-50% da arte (metade superior ou lateral), com o restante em fundo claro para textos
+- Opção B: foto contextual com recorte circular ou retangular arredondado, posicionada como destaque visual, rodeada por fundo claro com textos
+- Opção C: foto contextual como fundo com overlay claro forte (70-80% opacidade branca), permitindo que a foto fique sutilmente visível atrás do texto
+- A foto contextual DEVE ser reconhecível na arte final — o profissional precisa ver que sua foto foi usada` : `═══ ESTE ESTILO NÃO USA FOTOGRAFIA. PROIBIDO FUNDO COM FOTO. ═══
 
 FUNDO OBRIGATÓRIO: cor sólida clara e limpa — off-white, creme, cinza claro ou branco puro.
 - O fundo é APENAS uma cor sólida. PROIBIDO: foto de fundo, cenário, paisagem, pessoa, gradiente escuro
 - PROIBIDO qualquer imagem de fundo (pessoa dormindo, ambiente, close de corpo, etc.)
-- PERMITIDO no máximo: 1 elemento decorativo minimalista (linha fina, forma geométrica sutil) na cor da marca
+- PERMITIDO no máximo: 1 elemento decorativo minimalista (linha fina, forma geométrica sutil) na cor da marca`}
 
 TIPOGRAFIA É A PROTAGONISTA ABSOLUTA:
 - A tipografia é o elemento principal e dominante da arte — ocupa a maior parte do espaço
@@ -644,16 +655,24 @@ TIPOGRAFIA É A PROTAGONISTA ABSOLUTA:
 - Subtítulo: sans-serif leve, corpo menor, cinza médio
 - 1 detalhe decorativo: linha horizontal fina OU aspas tipográficas grandes OU sublinhado na cor da marca
 
-DIFERENCIAÇÃO: esta arte deve parecer uma revista/editorial — fundo claro limpo, texto escuro grande, sem foto.
+DIFERENCIAÇÃO: esta arte deve parecer uma revista/editorial — ${hasContextPhoto ? 'com a foto contextual integrada de forma elegante e' : 'fundo claro limpo,'} texto escuro grande${hasContextPhoto ? '' : ', sem foto'}.
 IDENTIDADE: rodapé em tipografia pequena, mesmo tom escuro, sem sombra`,
 
-      grafico: `VARIAÇÃO 3 — ARTE GRÁFICA (com cor da marca, sem foto realista):
-═══ ESTE ESTILO USA COR SÓLIDA DA MARCA + ELEMENTOS GRÁFICOS. PROIBIDO FOTO REALISTA DE FUNDO. ═══
+      grafico: `VARIAÇÃO 3 — ARTE GRÁFICA (com cor da marca${hasContextPhoto ? ' + foto contextual' : ', sem foto realista'}):
+${hasContextPhoto ? `═══ ESTE ESTILO USA COR DA MARCA + ELEMENTOS GRÁFICOS, COM FOTO CONTEXTUAL INTEGRADA ═══
+
+FUNDO: cor primária da marca (${primaryColorName}) como base — tom profundo, vibrante, não pastel.
+- OBRIGATÓRIO: integrar a FOTO CONTEXTUAL enviada pelo profissional na composição
+- Opção A: foto contextual em recorte estilizado (círculo, hexágono, retângulo com cantos arredondados) posicionada como destaque sobre o fundo colorido
+- Opção B: foto contextual ocupa 30-40% da arte com borda/moldura na cor da marca, resto do espaço com fundo colorido + textos
+- Opção C: foto contextual como fundo com overlay forte na cor da marca (60-70% opacidade), mantendo a foto sutilmente visível
+- A foto contextual DEVE ser reconhecível — o profissional precisa ver que sua foto foi usada
+- PERMITIDO: elementos gráficos geométricos ao redor da foto (círculos, ondas) na cor da marca` : `═══ ESTE ESTILO USA COR SÓLIDA DA MARCA + ELEMENTOS GRÁFICOS. PROIBIDO FOTO REALISTA DE FUNDO. ═══
 
 FUNDO OBRIGATÓRIO: cor primária da marca (${primaryColorName}) como base — tom profundo, vibrante, não pastel.
 - PROIBIDO: foto realista de fundo, cenário, pessoa, paisagem. Este NÃO é um estilo fotográfico.
 - OBRIGATÓRIO: elementos gráficos geométricos sobrepostos em transparência (círculos, formas orgânicas, padrões de grade, ondas) em versão mais clara ou escura da mesma cor
-- PERMITIDO: ícones flat estilizados, ilustrações médicas simplificadas, formas abstratas relacionadas ao tema
+- PERMITIDO: ícones flat estilizados, ilustrações médicas simplificadas, formas abstratas relacionadas ao tema`}
 - O visual deve parecer uma peça de marketing/tráfego pago — bold, colorida, impactante
 
 TIPOGRAFIA:
@@ -661,7 +680,7 @@ TIPOGRAFIA:
 - Subtítulo em cor secundária da marca (${secondaryColorName}) ou versão clara da primária
 - Hierarquia clara: headline grande → subtítulo médio → identificação pequena
 
-DIFERENCIAÇÃO: esta arte deve parecer uma peça de marketing — fundo colorido vibrante, formas geométricas, sem foto realista.
+DIFERENCIAÇÃO: esta arte deve parecer uma peça de marketing — fundo colorido vibrante, ${hasContextPhoto ? 'com a foto contextual integrada de forma estilizada' : 'formas geométricas, sem foto realista'}.
 IDENTIDADE: rodapé em branco/creme. Canto superior esquerdo VAZIO (reservado para logo em pós-processamento).`,
 
     };
@@ -674,7 +693,7 @@ IDENTIDADE: rodapé em branco/creme. Canto superior esquerdo VAZIO (reservado pa
 
       const styleTokens: Record<string, string> = {
         foto: `═══ SISTEMA VISUAL SÉRIE FOTOGRÁFICA — APLICAR IDENTICAMENTE EM TODOS OS SLIDES ═══
-FUNDO: foto/imagem em full-bleed com overlay escuro semitransparente (escuridão 40-60%) — paleta muted/cinematográfica. NUNCA fundo branco ou sólido sem imagem.
+FUNDO: ${hasContextPhoto ? 'USE A FOTO CONTEXTUAL ENVIADA PELO PROFISSIONAL como base visual de fundo (full-bleed)' : 'foto/imagem em full-bleed'} com overlay escuro semitransparente (escuridão 40-60%) — paleta muted/cinematográfica. NUNCA fundo branco ou sólido sem imagem.
 TIPOGRAFIA: 100% BRANCA ou creme claro. Títulos em serif bold grande. Destaques em italic. NUNCA texto escuro sobre fundo escuro.
 COR DE ACENTO: cor secundária da marca (${secondaryColorName}) apenas para elementos pontuais (linha, sublinhado, badge).
 HEADER FIXO (igual em todos): CANTO SUPERIOR ESQUERDO TOTALMENTE VAZIO (reservado para logo em pós-processamento) | número "0${slideNum}" — canto superior direito, branco, tipografia clean.
@@ -682,7 +701,7 @@ FOOTER FIXO (igual em todos): nome + especialidade + registro em tipografia pequ
 PROIBIDO nesta série: fundo sólido sem imagem, tipografia escura, mudar a paleta entre slides, escrever a palavra "logo" ou colocar qualquer símbolo/ícone no canto superior esquerdo.`,
 
         tipo: `═══ SISTEMA VISUAL SÉRIE TIPOGRÁFICA — APLICAR IDENTICAMENTE EM TODOS OS SLIDES ═══
-FUNDO: off-white SÓLIDO (tom creme/bege claro) — SEM EXCEÇÃO. NUNCA fundo escuro, NUNCA foto de fundo, NUNCA gradiente dramático.
+FUNDO: ${hasContextPhoto ? 'off-white SÓLIDO como base, MAS com a FOTO CONTEXTUAL integrada em cada slide (como recorte arredondado, seção lateral ou fundo com overlay branco 70-80%)' : 'off-white SÓLIDO (tom creme/bege claro) — SEM EXCEÇÃO. NUNCA fundo escuro, NUNCA foto de fundo, NUNCA gradiente dramático'}.
 TIPOGRAFIA: títulos em serif bold ESCURO (preto ou quase preto). Destaque italic em palavras-chave. Corpo em sans-serif leve cinza. NUNCA texto branco nesta série.
 COR DE ACENTO: cor primária da marca (${primaryColorName}) somente em palavras sublinhadas, linha separadora fina ou elemento mínimo de destaque.
 HEADER FIXO (igual em todos): CANTO SUPERIOR ESQUERDO TOTALMENTE VAZIO (reservado para logo em pós-processamento) | número "0${slideNum}" — canto superior direito, cinza discreto.
@@ -691,8 +710,8 @@ FOOTER FIXO (igual em todos): nome + especialidade + registro, fonte pequena, co
 PROIBIDO nesta série: fundo colorido sólido, fundo preto, tipografia branca, remover a linha separadora, mudar para estilo escuro em qualquer slide, escrever a palavra "logo" ou colocar qualquer símbolo/ícone no canto superior esquerdo.`,
 
         graf: `═══ SISTEMA VISUAL SÉRIE GRÁFICA/MARCA — APLICAR IDENTICAMENTE EM TODOS OS SLIDES ═══
-FUNDO: cor primária da marca (${primaryColorName}, ${primaryColor}) SÓLIDO como base de 100% do canvas — SEM EXCEÇÃO em todos os 5 slides. NUNCA foto de fundo, NUNCA branco como base.
-ELEMENTOS DECORATIVOS FIXOS: formas geométricas simples (círculos, semicírculos, retângulos) em tom 20-30% mais claro ou mais escuro que a cor primária, dispostas nos cantos/bordas como decoração discreta — IGUAL em todos os slides.
+FUNDO: cor primária da marca (${primaryColorName}, ${primaryColor}) SÓLIDO como base de 100% do canvas — SEM EXCEÇÃO em todos os 5 slides.${hasContextPhoto ? '' : ' NUNCA foto de fundo, NUNCA branco como base.'}
+${hasContextPhoto ? `FOTO CONTEXTUAL: o profissional enviou uma foto contextual — INTEGRE-A em cada slide como recorte estilizado (círculo, hexágono, retângulo arredondado) sobre o fundo colorido. A foto deve ser claramente reconhecível.` : ''}ELEMENTOS DECORATIVOS FIXOS: formas geométricas simples (círculos, semicírculos, retângulos) em tom 20-30% mais claro ou mais escuro que a cor primária, dispostas nos cantos/bordas como decoração discreta — IGUAL em todos os slides.
 TIPOGRAFIA: 100% BRANCA para títulos. Subtítulos/corpo em branco 80% ou cor secundária da marca (${secondaryColorName}). NUNCA tipografia escura nesta série.
 HEADER FIXO (igual em todos): CANTO SUPERIOR ESQUERDO TOTALMENTE VAZIO (reservado para logo em pós-processamento) | número "0${slideNum}" — canto superior direito, branco.
 FOOTER FIXO (igual em todos): nome + especialidade + registro em tipografia pequena branca.
@@ -822,7 +841,10 @@ OBRIGATÓRIO:
 - Resultado: imagem pronta para publicar no Instagram, que transmite autoridade médica e profissionalismo
 
 ⚠️ VERIFICAÇÃO FINAL DE DIFERENCIAÇÃO DE ESTILO:
-${designStyle === 'fotografico' || /^carrossel_foto/.test(designStyle) ? '→ Você está gerando o estilo FOTOGRÁFICO. A arte DEVE ter uma FOTO REALISTA como fundo (cenário, close de corpo, ambiente). Se não tem foto de fundo, REFAÇA.' : ''}${designStyle === 'tipografico' || /^carrossel_tipo/.test(designStyle) ? '→ Você está gerando o estilo TIPOGRÁFICO. A arte DEVE ter fundo CLARO SÓLIDO (branco/creme/cinza claro) com texto grande como protagonista. PROIBIDO foto de fundo, cenário escuro ou pessoa. Se tem foto de fundo, REFAÇA.' : ''}${designStyle === 'grafico' || /^carrossel_graf/.test(designStyle) ? '→ Você está gerando o estilo GRÁFICO. A arte DEVE ter fundo na COR DA MARCA com formas geométricas. PROIBIDO foto realista de fundo. Se tem foto realista, REFAÇA.' : ''}`;
+${designStyle === 'fotografico' || /^carrossel_foto/.test(designStyle) ? `→ Você está gerando o estilo FOTOGRÁFICO. A arte DEVE ter uma FOTO REALISTA como fundo (cenário, close de corpo, ambiente).${hasContextPhoto ? ' Se há foto contextual enviada pelo profissional, USE-A como fundo principal.' : ''} Se não tem foto de fundo, REFAÇA.` : ''}${designStyle === 'tipografico' || /^carrossel_tipo/.test(designStyle) ? `→ Você está gerando o estilo TIPOGRÁFICO. A tipografia é protagonista.${hasContextPhoto ? ' O profissional enviou uma foto contextual — INTEGRE-A na composição (como elemento visual em destaque, recorte ou fundo com overlay claro). A foto DEVE ser reconhecível na arte final.' : ' PROIBIDO foto de fundo, cenário escuro ou pessoa. Se tem foto de fundo, REFAÇA.'}` : ''}${designStyle === 'grafico' || /^carrossel_graf/.test(designStyle) ? `→ Você está gerando o estilo GRÁFICO. A arte DEVE ter fundo na COR DA MARCA com formas geométricas.${hasContextPhoto ? ' O profissional enviou uma foto contextual — INTEGRE-A na composição como recorte estilizado sobre o fundo colorido. A foto DEVE ser reconhecível na arte final.' : ' PROIBIDO foto realista de fundo. Se tem foto realista, REFAÇA.'}` : ''}`;
+
+    return prompt;
+    }; // fim de buildPromptText()
 
     // Carregar imagens de referência: prioriza as da categoria, completa com as gerais
     const referenceImages = this.loadReferenceImages(category);
@@ -864,11 +886,14 @@ As referências servem apenas para nortear qualidade, composição e estilo — 
           photoBase64 = base64Match[2];
         } else {
           // URL do R2 (HTTPS) — baixa e converte para base64
+          this.logger.log(`[${designStyle}] Buscando foto profissional de URL: ${userPhotoUrl.substring(0, 100)}...`);
           const res = await fetch(userPhotoUrl);
           if (res.ok) {
             const ct = res.headers.get('content-type');
             if (ct) photoMime = ct.split(';')[0];
             photoBase64 = Buffer.from(await res.arrayBuffer()).toString('base64');
+          } else {
+            this.logger.error(`[${designStyle}] ❌ Falha ao buscar foto profissional: HTTP ${res.status} ${res.statusText} — URL: ${userPhotoUrl}`);
           }
         }
 
@@ -902,31 +927,47 @@ OBRIGATÓRIO para esta variação:
           contextMime = ctxMatch[1];
           contextBase64 = ctxMatch[2];
         } else {
+          this.logger.log(`[${designStyle}] Buscando foto contextual de URL: ${contextPhotoUrl.substring(0, 80)}...`);
           const res = await fetch(contextPhotoUrl);
           if (res.ok) {
             const ct = res.headers.get('content-type');
             if (ct) contextMime = ct.split(';')[0];
             contextBase64 = Buffer.from(await res.arrayBuffer()).toString('base64');
+          } else {
+            this.logger.warn(`[${designStyle}] Falha ao buscar foto contextual: HTTP ${res.status} ${res.statusText}`);
           }
         }
 
         if (contextBase64) {
+          const isPhotoStyle = designStyle === 'fotografico' || /^carrossel_foto/.test(designStyle);
+          const isTypoStyle = designStyle === 'tipografico' || /^carrossel_tipo/.test(designStyle);
+          const isGraphicStyle = designStyle === 'grafico' || /^carrossel_graf/.test(designStyle);
+
+          const styleSpecificInstruction = isPhotoStyle
+            ? `INTEGRAÇÃO OBRIGATÓRIA (estilo fotográfico): Use esta foto como FUNDO PRINCIPAL da arte (full-bleed, borda a borda). Aplique overlay escuro semitransparente (40-60%) sobre a foto para garantir legibilidade dos textos sobrepostos. A foto deve ocupar 100% do canvas.`
+            : isTypoStyle
+            ? `INTEGRAÇÃO OBRIGATÓRIA (estilo tipográfico): Divida a arte em duas zonas — a foto contextual deve ocupar 40-50% da composição (metade superior, lateral ou como recorte circular/arredondado em destaque). O restante mantém fundo claro com a tipografia como protagonista. Alternativa: use a foto como fundo com overlay branco forte (70-80% opacidade) para que fique sutilmente visível.`
+            : `INTEGRAÇÃO OBRIGATÓRIA (estilo gráfico): Posicione a foto em um recorte estilizado (círculo, hexágono, retângulo arredondado) sobre o fundo na cor da marca. A foto deve ocupar 30-40% da arte e ser claramente visível. Adicione elementos geométricos decorativos ao redor.`;
+
           contentParts.push({ inlineData: { mimeType: contextMime, data: contextBase64 } });
           contentParts.push({
-            text: `⚠️ FOTO CONTEXTUAL DO PROFISSIONAL — OBRIGATÓRIO USAR:
+            text: `═══════════════════════════════════════════════════════
+⚠️ FOTO CONTEXTUAL DO PROFISSIONAL — REGRA ABSOLUTA: ESTA FOTO TEM QUE APARECER NA ARTE FINAL
+═══════════════════════════════════════════════════════
 A imagem acima é uma foto REAL do ambiente do profissional (consultório, equipamento, procedimento, etc.).
+O profissional ESCOLHEU enviar esta foto para que ela apareça na arte. Ignorar esta foto = arte REJEITADA.
 
-VOCÊ DEVE INCORPORAR ESTA IMAGEM NA ARTE FINAL. Isso é OBRIGATÓRIO, não opcional.
+${styleSpecificInstruction}
 
-Como incorporar:
-- INTEGRE visualmente a foto na composição da arte (como fundo, como elemento de destaque ou como parte do layout)
-- Se o estilo é FOTOGRÁFICO: use a foto como cenário/fundo principal da arte, sobrepondo os textos
-- Se o estilo é TIPOGRÁFICO: use a foto em uma seção da arte (metade, terço, ou como fundo com overlay escuro + textos por cima)
-- Se o estilo é GRÁFICO: use elementos visuais da foto como referência e inclua a foto em um recorte estilizado dentro da composição
-- A foto DEVE ser reconhecível na arte final — o usuário precisa ver que sua foto foi usada
-- Mantenha a qualidade e proporção da foto, não distorça`,
+REGRAS INVIOLÁVEIS:
+- A foto DEVE ser reconhecível e claramente visível na arte final
+- Mantenha a qualidade e proporção da foto, não distorça
+- Esta instrução TEM PRIORIDADE sobre qualquer outra instrução que diga "PROIBIDO foto" — o profissional enviou a foto deliberadamente`,
           });
-          this.logger.log(`[${designStyle}] Foto contextual carregada (${contextMime})`);
+          hasContextPhoto = true;
+          this.logger.log(`[${designStyle}] Foto contextual carregada (${contextMime}, ${Math.round(contextBase64.length / 1024)}KB base64)`);
+        } else {
+          this.logger.warn(`[${designStyle}] Foto contextual presente na URL mas não foi possível extrair base64`);
         }
       } catch (err: any) {
         this.logger.warn(`[${designStyle}] Falha ao carregar foto contextual: ${err?.message}`);
@@ -944,7 +985,8 @@ Como incorporar:
 - Se o prompt mencionar "logo" em alguma instrução de layout, IGNORE e deixe o espaço vazio.`,
     });
 
-    contentParts.push({ text: prompt });
+    // Construir o prompt DEPOIS de saber se a foto contextual carregou de fato
+    contentParts.push({ text: buildPromptText() });
 
     const models = [
       process.env.GOOGLE_IMAGE_MODEL || 'nano-banana-pro-preview',
