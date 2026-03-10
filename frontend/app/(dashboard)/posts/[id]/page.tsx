@@ -207,7 +207,16 @@ export default function PostResultPage() {
         params: { url, filename },
         responseType: 'blob',
       })
-      const blobUrl = URL.createObjectURL(response.data)
+      const blob = response.data
+      const blobUrl = URL.createObjectURL(blob)
+
+      // Safari iOS não suporta a.download — abrir em nova aba para salvar manualmente
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      if (isIOS) {
+        window.open(blobUrl, '_blank')
+        return
+      }
+
       const a = document.createElement('a')
       a.href = blobUrl
       a.download = filename
@@ -244,25 +253,27 @@ export default function PostResultPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/dashboard">
+      <div className="flex items-start gap-3 sm:gap-4">
+        <Link href="/dashboard" className="mt-1">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">Seu post</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Seu post</h1>
           {post && <p className="text-gray-500 text-sm mt-0.5 line-clamp-1">{post.theme}</p>}
+          <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+            {post && (
+              <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full font-medium">
+                {{ FEED: 'Feed 1:1', PORTRAIT: 'Retrato 4:5', STORIES: 'Stories 9:16', CARROSSEL: 'Carrossel' }[post.format] ?? post.format}
+              </span>
+            )}
+            {isCompleted && <Badge variant="success">Gerado com sucesso</Badge>}
+            {isFailed && <Badge variant="destructive">Falha na geração</Badge>}
+            {isTextsReady && <Badge variant="secondary">Textos prontos</Badge>}
+            {(isLoading || isGenerating) && <Badge variant="secondary">Gerando...</Badge>}
+          </div>
         </div>
-        {post && (
-          <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full font-medium">
-            {{ FEED: 'Feed 1:1', PORTRAIT: 'Retrato 4:5', STORIES: 'Stories 9:16', CARROSSEL: 'Carrossel' }[post.format] ?? post.format}
-          </span>
-        )}
-        {isCompleted && <Badge variant="success">Gerado com sucesso</Badge>}
-        {isFailed && <Badge variant="destructive">Falha na geração</Badge>}
-        {isTextsReady && <Badge variant="secondary">Textos prontos</Badge>}
-        {(isLoading || isGenerating) && <Badge variant="secondary">Gerando...</Badge>}
       </div>
 
       {/* Loading inicial */}
@@ -480,7 +491,7 @@ export default function PostResultPage() {
           </div>
 
           {/* Ações */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Button
               variant="outline"
               className="flex-1"
@@ -521,7 +532,7 @@ export default function PostResultPage() {
                   <span className="text-xs text-gray-400">{slides.length} slides</span>
                 </div>
 
-                <div className="grid grid-cols-5 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3">
                   {slides.map((slide) => {
                     const slideNum = getCarrosselSlideNum(slide.designStyle ?? '') ?? 0
                     const label = slideLabels[slideNum] || `Slide ${slideNum}`
@@ -571,7 +582,7 @@ export default function PostResultPage() {
                   <span className="text-xs text-gray-400">Proporção 4:5 (1080×1350)</span>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {post.variations.map((variation) => {
                   const isSelected = variation.id === selectedVariation
                   return (
@@ -680,7 +691,7 @@ export default function PostResultPage() {
           )}
 
           {/* Ações */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Button variant="outline" className="flex-1" onClick={() => router.push('/posts/novo')}>
               Criar outro post
             </Button>
