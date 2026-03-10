@@ -118,8 +118,8 @@ export default function DashboardPage() {
     async function fetchData() {
       try {
         const [postsRes, photosRes, usageRes] = await Promise.all([
-          api.get<Post[]>('/posts'),
-          api.get<PhotoSession[]>('/photos'),
+          api.get<Post[]>('/posts').catch(() => ({ data: [] as Post[] })),
+          api.get<PhotoSession[]>('/photos').catch(() => ({ data: [] as PhotoSession[] })),
           api.get<UsageData>('/usage').catch(() => ({ data: null })),
         ])
         setPosts(postsRes.data)
