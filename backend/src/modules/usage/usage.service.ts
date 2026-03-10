@@ -48,18 +48,25 @@ export class UsageService {
       include: { plan: true },
     });
 
-    // Sem assinatura ativa = sem acesso
-    if (!subscription || subscription.status !== 'ACTIVE') {
+    // Sem assinatura = sem acesso
+    if (!subscription) {
       throw new ForbiddenException(
         'Você precisa de uma assinatura ativa para usar este recurso. Assine um plano para continuar.',
       );
     }
 
     // 2. Verificar se o período da assinatura ainda é válido
+    // Permite uso até o fim do período mesmo se cancelou (CANCELLED)
     const now = new Date();
-    if (subscription.currentPeriodEnd && subscription.currentPeriodEnd < now) {
+    const periodValid = subscription.currentPeriodEnd && subscription.currentPeriodEnd > now;
+
+    if (subscription.status === 'ACTIVE' || (subscription.status === 'CANCELLED' && periodValid)) {
+      // OK — pode continuar
+    } else {
       throw new ForbiddenException(
-        'Sua assinatura expirou. Renove para continuar usando a plataforma.',
+        subscription.status === 'CANCELLED'
+          ? 'Seu período de assinatura expirou. Renove para continuar usando a plataforma.'
+          : 'Você precisa de uma assinatura ativa para usar este recurso. Assine um plano para continuar.',
       );
     }
 

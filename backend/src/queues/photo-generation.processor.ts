@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { PrismaService } from '../database/prisma.service';
 import { StorageService } from '../modules/storage/storage.service';
 import { AiService } from '../modules/ai/ai.service';
+import { UsageService } from '../modules/usage/usage.service';
 import { Profession } from '@prisma/client';
 
 export const PHOTO_GENERATION_QUEUE = 'photo-generation';
@@ -107,6 +108,7 @@ export class PhotoGenerationProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly ai: AiService,
+    private readonly usage: UsageService,
   ) {
     super();
   }
@@ -232,6 +234,11 @@ export class PhotoGenerationProcessor extends WorkerHost {
         where: { id: photoSessionId },
         data: { generatedPhotoUrls: finalUrls, status: 'COMPLETED' },
       });
+
+      // Registrar consumo de PHOTO apenas na geração inicial (não na regeneração)
+      if (!isRegeneration) {
+        await this.usage.record(userId, 'PHOTO');
+      }
 
       await job.updateProgress(100);
       this.logger.log(`[${photoSessionId}] ${isRegeneration ? 'Regeneração' : 'Enxoval'} concluído! ${generatedUrls.length} fotos geradas.`);

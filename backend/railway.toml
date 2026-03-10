@@ -2,6 +2,6 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "npm run start"
+startCommand = "npx prisma migrate deploy && npm run start"
 healthcheckPath = "/api/docs"
 healthcheckTimeout = 30

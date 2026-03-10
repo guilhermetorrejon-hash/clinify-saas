@@ -64,7 +64,8 @@ export class PhotosService {
       return session;
     }
 
-    // Modo GENERATE: criar sessão e enfileirar job de treinamento LoRA
+    // Modo GENERATE: criar sessão e enfileirar job
+    // O usage.record será chamado no processor após geração com sucesso
     const session = await this.prisma.professionalPhoto.create({
       data: {
         userId,
@@ -74,9 +75,6 @@ export class PhotosService {
         status: 'PENDING',
       },
     });
-
-    // Registrar que consumiu 1 sessão de foto
-    await this.usage.record(userId, 'PHOTO');
 
     const job = await this.photosQueue.add(
       'generate-photos',
