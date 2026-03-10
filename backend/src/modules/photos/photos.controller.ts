@@ -36,6 +36,24 @@ export class PhotosController {
     return this.photosService.updateFavorites(user.id, id, body.favoriteUrls);
   }
 
+  @Delete(':id/photo')
+  deletePhoto(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { photoUrl: string },
+  ) {
+    return this.photosService.deletePhoto(user.id, id, body.photoUrl);
+  }
+
+  @Post(':id/regenerate')
+  regenerate(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { count: number },
+  ) {
+    return this.photosService.regeneratePhotos(user.id, id, body.count);
+  }
+
   @Delete(':id')
   remove(@CurrentUser() user: any, @Param('id') id: string) {
     return this.photosService.deleteSession(user.id, id);

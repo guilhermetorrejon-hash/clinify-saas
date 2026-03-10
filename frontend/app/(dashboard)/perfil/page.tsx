@@ -537,29 +537,66 @@ export default function PerfilPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-700">Cor primária</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={form.brandPrimaryColor}
+                    onChange={(e) => setForm({ ...form, brandPrimaryColor: e.target.value })}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <div
+                    className="h-11 w-11 rounded-xl border border-gray-200 cursor-pointer shrink-0"
+                    style={{ backgroundColor: form.brandPrimaryColor }}
+                  />
+                </div>
+                <Input
                   value={form.brandPrimaryColor}
-                  onChange={(e) => setForm({ ...form, brandPrimaryColor: e.target.value })}
-                  className="h-11 w-16 rounded-xl border border-gray-200 cursor-pointer p-1"
+                  onChange={(e) => {
+                    let v = e.target.value
+                    if (v && !v.startsWith('#')) v = '#' + v
+                    if (/^#[0-9A-Fa-f]{0,6}$/.test(v) || v === '') {
+                      setForm({ ...form, brandPrimaryColor: v || '#' })
+                    }
+                  }}
+                  placeholder="#0e82eb"
+                  className="font-mono text-sm"
+                  maxLength={7}
                 />
-                <span className="text-sm text-gray-500 font-mono">{form.brandPrimaryColor}</span>
               </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-700">Cor secundária</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={form.brandSecondaryColor}
+                    onChange={(e) => setForm({ ...form, brandSecondaryColor: e.target.value })}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <div
+                    className="h-11 w-11 rounded-xl border border-gray-200 cursor-pointer shrink-0"
+                    style={{ backgroundColor: form.brandSecondaryColor }}
+                  />
+                </div>
+                <Input
                   value={form.brandSecondaryColor}
-                  onChange={(e) => setForm({ ...form, brandSecondaryColor: e.target.value })}
-                  className="h-11 w-16 rounded-xl border border-gray-200 cursor-pointer p-1"
+                  onChange={(e) => {
+                    let v = e.target.value
+                    if (v && !v.startsWith('#')) v = '#' + v
+                    if (/^#[0-9A-Fa-f]{0,6}$/.test(v) || v === '') {
+                      setForm({ ...form, brandSecondaryColor: v || '#' })
+                    }
+                  }}
+                  placeholder="#fbbf24"
+                  className="font-mono text-sm"
+                  maxLength={7}
                 />
-                <span className="text-sm text-gray-500 font-mono">{form.brandSecondaryColor}</span>
               </div>
             </div>
           </div>
+          <p className="text-xs text-gray-400">Cole o codigo hex da sua cor (ex: #0e82eb) ou clique no quadrado para escolher</p>
           <div className="p-4 rounded-xl border border-gray-100 bg-gray-50">
             <p className="text-xs text-gray-500 mb-2 font-medium">Preview das suas cores</p>
             <div

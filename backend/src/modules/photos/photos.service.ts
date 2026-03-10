@@ -121,6 +121,60 @@ export class PhotosService {
     });
   }
 
+  async deletePhoto(userId: string, sessionId: string, photoUrl: string) {
+    const session = await this.findOne(userId, sessionId);
+
+    if (!session.generatedPhotoUrls.includes(photoUrl)) {
+      throw new BadRequestException('Foto não encontrada nesta sessão.');
+    }
+
+    const updatedGenerated = session.generatedPhotoUrls.filter(url => url !== photoUrl);
+    const updatedFavorites = (session.favoritePhotoUrls || []).filter(url => url !== photoUrl);
+
+    return this.prisma.professionalPhoto.update({
+      where: { id: sessionId },
+      data: {
+        generatedPhotoUrls: updatedGenerated,
+        favoritePhotoUrls: updatedFavorites,
+      },
+    });
+  }
+
+  async regeneratePhotos(userId: string, sessionId: string, count: number) {
+    const session = await this.findOne(userId, sessionId);
+
+    if (session.mode !== 'GENERATE') {
+      throw new BadRequestException('Regeneração só disponível para sessões geradas por IA.');
+    }
+    if (session.status === 'PROCESSING' || session.status === 'PENDING') {
+      throw new BadRequestException('Sessão ainda em processamento.');
+    }
+
+    const MAX_REGENERATIONS = 3;
+    const remaining = MAX_REGENERATIONS - (session.regenerationsUsed || 0);
+
+    if (remaining <= 0) {
+      throw new BadRequestException('Você já usou suas 3 regenerações de cortesia.');
+    }
+
+    const toGenerate = Math.min(count, remaining);
+
+    const job = await this.photosQueue.add(
+      'regenerate-photos',
+      { photoSessionId: sessionId, userId, regenerateCount: toGenerate },
+      QUEUE_OPTIONS,
+    );
+
+    return this.prisma.professionalPhoto.update({
+      where: { id: sessionId },
+      data: {
+        status: 'PROCESSING',
+        regenerationsUsed: (session.regenerationsUsed || 0) + toGenerate,
+        jobId: job.id as string,
+      },
+    });
+  }
+
   async deleteSession(userId: string, sessionId: string) {
     const session = await this.prisma.professionalPhoto.findUnique({ where: { id: sessionId } });
     if (!session) throw new NotFoundException('Sessão não encontrada');

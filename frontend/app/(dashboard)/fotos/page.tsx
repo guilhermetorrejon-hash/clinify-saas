@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Camera, Sparkles, Upload, ImagePlus, X, Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, ChevronRight, Star } from 'lucide-react'
+import { Camera, Sparkles, Upload, ImagePlus, X, Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, ChevronRight, Star, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -15,9 +15,12 @@ interface PhotoSession {
   mode: string
   generatedPhotoUrls: string[]
   favoritePhotoUrls: string[]
+  regenerationsUsed: number
   status: PhotoStatus
   createdAt: string
 }
+
+const MAX_REGENERATIONS = 3
 
 const MAX_FILE_SIZE_MB = 5
 const MAX_PHOTOS = 10
@@ -146,6 +149,33 @@ export default function FotosPage() {
       setSessions(prev => prev.map(s =>
         s.id === sessionId ? { ...s, favoritePhotoUrls: current } : s
       ))
+    }
+  }
+
+  async function handleDeletePhoto(sessionId: string, photoUrl: string) {
+    // Atualizar estado local imediatamente (otimista)
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? {
+        ...s,
+        generatedPhotoUrls: s.generatedPhotoUrls.filter(u => u !== photoUrl),
+        favoritePhotoUrls: (s.favoritePhotoUrls || []).filter(u => u !== photoUrl),
+      } : s
+    ))
+
+    try {
+      await api.delete(`/photos/${sessionId}/photo`, { data: { photoUrl } })
+    } catch {
+      // Reverter em caso de erro
+      await fetchSessions()
+    }
+  }
+
+  async function handleRegenerate(sessionId: string, count: number) {
+    try {
+      await api.post(`/photos/${sessionId}/regenerate`, { count })
+      await fetchSessions()
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao regenerar. Tente novamente.')
     }
   }
 
@@ -412,6 +442,42 @@ export default function FotosPage() {
               </p>
             )}
           </div>
+
+          {/* Barra de regeneração */}
+          {completedSessions.filter(s => s.mode === 'GENERATE').map(session => {
+            const remaining = MAX_REGENERATIONS - (session.regenerationsUsed || 0)
+            if (remaining <= 0) return null
+            return (
+              <Card key={`regen-${session.id}`}>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                    <RefreshCw className="h-5 w-5 text-violet-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 text-sm">Não gostou de alguma foto?</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Delete as que não curtiu e regenere novas. Você tem <strong>{remaining} regenera{remaining === 1 ? 'ção' : 'ções'}</strong> de cortesia.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    {[1, 2, 3].filter(n => n <= remaining).map(n => (
+                      <Button
+                        key={n}
+                        size="sm"
+                        variant={n === remaining ? 'default' : 'outline'}
+                        onClick={() => handleRegenerate(session.id, n)}
+                        disabled={!!activeSession}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        {n} foto{n !== 1 ? 's' : ''}
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {allPhotos.map((photo, i) => (
               <div key={i} className={cn(
@@ -435,6 +501,13 @@ export default function FotosPage() {
                   )}
                 >
                   <Star className={cn('h-4 w-4', photo.isFavorite && 'fill-white')} />
+                </button>
+                {/* Botão de deletar — canto superior esquerdo, visível no hover */}
+                <button
+                  onClick={() => handleDeletePhoto(photo.sessionId, photo.url)}
+                  className="absolute top-2 left-2 h-8 w-8 rounded-full bg-black/40 text-white/70 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <Trash2 className="h-4 w-4" />
                 </button>
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100 pointer-events-none">
                   <a

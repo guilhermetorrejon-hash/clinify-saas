@@ -11,6 +11,7 @@ export const PHOTO_GENERATION_QUEUE = 'photo-generation';
 export interface PhotoGenerationJob {
   photoSessionId: string;
   userId: string;
+  regenerateCount?: number;
 }
 
 function getStylePrompts(profession: Profession): string[] {
@@ -110,9 +111,39 @@ export class PhotoGenerationProcessor extends WorkerHost {
     super();
   }
 
+  private async loadPhotosAsBase64(urls: string[]): Promise<{ data: string; mimeType: string }[]> {
+    const photos: { data: string; mimeType: string }[] = [];
+    for (const url of urls) {
+      try {
+        let buffer: Buffer;
+        let mimeType = 'image/jpeg';
+
+        if (url.startsWith('data:')) {
+          const match = url.match(/^data:([^;]+);base64,(.+)$/);
+          if (!match) continue;
+          mimeType = match[1];
+          buffer = Buffer.from(match[2], 'base64');
+        } else {
+          const response = await fetch(url);
+          if (!response.ok) continue;
+          buffer = Buffer.from(await response.arrayBuffer());
+          const ct = response.headers.get('content-type');
+          if (ct) mimeType = ct.split(';')[0];
+        }
+
+        photos.push({ data: buffer.toString('base64'), mimeType });
+      } catch {
+        // Pula foto que falhou ao carregar
+      }
+    }
+    return photos;
+  }
+
   async process(job: Job<PhotoGenerationJob>): Promise<void> {
-    const { photoSessionId, userId } = job.data;
-    this.logger.log(`[${photoSessionId}] Iniciando geração de fotos profissionais com Gemini`);
+    const { photoSessionId, userId, regenerateCount } = job.data;
+    const isRegeneration = !!regenerateCount;
+
+    this.logger.log(`[${photoSessionId}] ${isRegeneration ? `Regenerando ${regenerateCount} fotos` : 'Iniciando geração de fotos profissionais'}`);
 
     await this.prisma.professionalPhoto.update({
       where: { id: photoSessionId },
@@ -129,32 +160,16 @@ export class PhotoGenerationProcessor extends WorkerHost {
 
       const profession: Profession = brandKit?.profession || 'OUTRO';
 
-      // ── Etapa 1: Carregar todas as fotos de referência como base64 ───────────
-      this.logger.log(`[${photoSessionId}] Carregando ${session.originalPhotoUrls.length} fotos de referência...`);
-      const referencePhotos: { data: string; mimeType: string }[] = [];
+      // ── Etapa 1: Carregar fotos de referência ───────────────────────────────
+      this.logger.log(`[${photoSessionId}] Carregando ${session.originalPhotoUrls.length} fotos originais de referência...`);
+      const referencePhotos = await this.loadPhotosAsBase64(session.originalPhotoUrls);
 
-      for (const url of session.originalPhotoUrls) {
-        try {
-          let buffer: Buffer;
-          let mimeType = 'image/jpeg';
-
-          if (url.startsWith('data:')) {
-            const match = url.match(/^data:([^;]+);base64,(.+)$/);
-            if (!match) continue;
-            mimeType = match[1];
-            buffer = Buffer.from(match[2], 'base64');
-          } else {
-            const response = await fetch(url);
-            if (!response.ok) continue;
-            buffer = Buffer.from(await response.arrayBuffer());
-            const ct = response.headers.get('content-type');
-            if (ct) mimeType = ct.split(';')[0];
-          }
-
-          referencePhotos.push({ data: buffer.toString('base64'), mimeType });
-        } catch {
-          // Pula foto que falhou ao carregar
-        }
+      // Na regeneração, incluir fotos favoritas como referência extra
+      if (isRegeneration && session.favoritePhotoUrls?.length) {
+        this.logger.log(`[${photoSessionId}] Carregando ${session.favoritePhotoUrls.length} fotos favoritas como referência de estilo...`);
+        const favoritePhotos = await this.loadPhotosAsBase64(session.favoritePhotoUrls);
+        referencePhotos.push(...favoritePhotos);
+        this.logger.log(`[${photoSessionId}] Total de referências: ${referencePhotos.length} (originais + favoritas)`);
       }
 
       if (referencePhotos.length === 0) {
@@ -164,12 +179,23 @@ export class PhotoGenerationProcessor extends WorkerHost {
       this.logger.log(`[${photoSessionId}] ${referencePhotos.length} fotos carregadas para referência`);
       await job.updateProgress(15);
 
-      // ── Etapa 2: Gerar 10 fotos com Gemini ──────────────────────────────────
-      const stylePrompts = getStylePrompts(profession);
+      // ── Etapa 2: Gerar fotos com Gemini ─────────────────────────────────────
+      const allStylePrompts = getStylePrompts(profession);
+      const totalToGenerate = isRegeneration ? regenerateCount! : allStylePrompts.length;
+
+      // Na regeneração, escolher prompts aleatórios
+      let stylePrompts: string[];
+      if (isRegeneration) {
+        const shuffled = [...allStylePrompts].sort(() => Math.random() - 0.5);
+        stylePrompts = shuffled.slice(0, totalToGenerate);
+      } else {
+        stylePrompts = allStylePrompts;
+      }
+
       const generatedUrls: string[] = [];
 
       for (let i = 0; i < stylePrompts.length; i++) {
-        this.logger.log(`[${photoSessionId}] Gerando foto ${i + 1}/10...`);
+        this.logger.log(`[${photoSessionId}] Gerando foto ${i + 1}/${totalToGenerate}...`);
 
         try {
           const { base64, mimeType } = await this.ai.generateProfessionalPhoto({
@@ -185,34 +211,38 @@ export class PhotoGenerationProcessor extends WorkerHost {
           );
 
           generatedUrls.push(r2Url);
-          this.logger.log(`[${photoSessionId}] Foto ${i + 1}/10 salva`);
+          this.logger.log(`[${photoSessionId}] Foto ${i + 1}/${totalToGenerate} salva`);
         } catch (err: any) {
           this.logger.error(`[${photoSessionId}] Foto ${i + 1} falhou: ${err?.message}`);
         }
 
-        await job.updateProgress(15 + (i + 1) * 8);
+        await job.updateProgress(15 + Math.round(((i + 1) / totalToGenerate) * 80));
       }
 
       if (generatedUrls.length === 0) {
         throw new Error('Nenhuma foto foi gerada com sucesso');
       }
 
-      // ── Etapa 3: Salvar resultados ───────────────────────────────────────────
+      // ── Etapa 3: Salvar resultados ──────────────────────────────────────────
+      const finalUrls = isRegeneration
+        ? [...session.generatedPhotoUrls, ...generatedUrls]
+        : generatedUrls;
+
       await this.prisma.professionalPhoto.update({
         where: { id: photoSessionId },
-        data: { generatedPhotoUrls: generatedUrls, status: 'COMPLETED' },
+        data: { generatedPhotoUrls: finalUrls, status: 'COMPLETED' },
       });
 
       await job.updateProgress(100);
-      this.logger.log(`[${photoSessionId}] Enxoval gerado! ${generatedUrls.length}/10 fotos.`);
+      this.logger.log(`[${photoSessionId}] ${isRegeneration ? 'Regeneração' : 'Enxoval'} concluído! ${generatedUrls.length} fotos geradas.`);
 
     } catch (error) {
       this.logger.error(`[${photoSessionId}] Erro na geração: ${error}`);
       await this.prisma.professionalPhoto.update({
         where: { id: photoSessionId },
-        data: { status: 'FAILED' },
+        data: { status: isRegeneration ? 'COMPLETED' : 'FAILED' },
       });
-      throw error;
+      if (!isRegeneration) throw error;
     }
   }
 }

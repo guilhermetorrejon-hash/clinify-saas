@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Sparkles, PlusCircle, Camera, TrendingUp, Clock, ChevronRight } from 'lucide-react'
+import { Sparkles, PlusCircle, Camera, TrendingUp, Clock, ChevronRight, Zap, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -80,23 +80,54 @@ interface PhotoSession {
   status: string
 }
 
+interface UsageItem {
+  used: number
+  limit: number
+}
+
+interface UsageData {
+  hasSubscription: boolean
+  plan?: { name: string; slug: string }
+  periodEnd?: string
+  usage?: Record<string, UsageItem>
+}
+
+const usageLabels: Record<string, string> = {
+  POST: 'Posts',
+  CAROUSEL: 'Carrosseis',
+  PHOTO: 'Fotos Pro',
+  THEME_SUGGESTION: 'Sugestoes de tema',
+  CAPTION_REWRITE: 'Reescritas de copy',
+}
+
+const usageIcons: Record<string, string> = {
+  POST: '📝',
+  CAROUSEL: '🎠',
+  PHOTO: '📸',
+  THEME_SUGGESTION: '💡',
+  CAPTION_REWRITE: '✍️',
+}
+
 export default function DashboardPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [photoCount, setPhotoCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [usageData, setUsageData] = useState<UsageData | null>(null)
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [postsRes, photosRes] = await Promise.all([
+        const [postsRes, photosRes, usageRes] = await Promise.all([
           api.get<Post[]>('/posts'),
           api.get<PhotoSession[]>('/photos'),
+          api.get<UsageData>('/usage').catch(() => ({ data: null })),
         ])
         setPosts(postsRes.data)
         const total = photosRes.data
           .filter((s) => s.status === 'COMPLETED')
           .reduce((acc, s) => acc + s.generatedPhotoUrls.length, 0)
         setPhotoCount(total)
+        if (usageRes.data) setUsageData(usageRes.data)
       } catch {
         // silent
       } finally {
@@ -175,6 +206,67 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Uso do plano */}
+      {usageData?.hasSubscription && usageData.usage && (
+        <Card>
+          <CardContent className="p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center">
+                  <Zap className="h-5 w-5 text-violet-600" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-gray-900">
+                    Plano {usageData.plan?.name || 'Ativo'}
+                  </h2>
+                  {usageData.periodEnd && (
+                    <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                      <CalendarDays className="h-3 w-3" />
+                      Renova em {new Date(usageData.periodEnd).toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Link href="/" target="_blank">
+                <Button variant="outline" size="sm">
+                  <Zap className="h-3.5 w-3.5" />
+                  Upgrade
+                </Button>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Object.entries(usageData.usage)
+                .filter(([, v]) => v.limit > 0)
+                .map(([key, { used, limit }]) => {
+                  const pct = Math.min(100, Math.round((used / limit) * 100))
+                  const isNearLimit = pct >= 80
+                  const isAtLimit = used >= limit
+                  return (
+                    <div key={key} className="p-3 rounded-xl bg-gray-50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-700 flex items-center gap-1.5">
+                          <span>{usageIcons[key] || '📊'}</span>
+                          {usageLabels[key] || key}
+                        </span>
+                        <span className={`text-sm font-semibold ${isAtLimit ? 'text-red-600' : isNearLimit ? 'text-amber-600' : 'text-gray-900'}`}>
+                          {used}/{limit}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${isAtLimit ? 'bg-red-500' : isNearLimit ? 'bg-amber-500' : 'bg-violet-500'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick create */}
       <div>

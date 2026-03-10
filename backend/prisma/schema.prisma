@@ -153,6 +153,7 @@ model ProfessionalPhoto {
   generatedPhotoUrls   String[]    @default([])
   favoritePhotoUrls    String[]    @default([])
   loraUrl              String?
+  regenerationsUsed    Int         @default(0)
   status               PhotoStatus @default(PENDING)
   jobId                String?
   createdAt            DateTime    @default(now())
