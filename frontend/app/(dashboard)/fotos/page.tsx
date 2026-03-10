@@ -51,6 +51,7 @@ function resizeImageToBase64(file: File, maxSide = 1024): Promise<string> {
 export default function FotosPage() {
   const [sessions, setSessions] = useState<PhotoSession[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState('')
   const [view, setView] = useState<'gallery' | 'upload'>('gallery')
   const [mode, setMode] = useState<UploadMode>('GENERATE')
   const [previews, setPreviews] = useState<{ file: File; dataUrl: string }[]>([])
@@ -62,8 +63,9 @@ export default function FotosPage() {
     try {
       const { data } = await api.get('/photos')
       setSessions(data)
+      setFetchError('')
     } catch {
-      // silencioso
+      setFetchError('Não foi possível carregar suas fotos. Tente atualizar a página.')
     } finally {
       setLoading(false)
     }
@@ -400,6 +402,25 @@ export default function FotosPage() {
             >
               <RefreshCw className="h-4 w-4 text-gray-500" />
             </button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Erro ao carregar */}
+      {fetchError && (
+        <Card>
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-gray-900 text-sm">Erro ao carregar fotos</p>
+              <p className="text-xs text-gray-500 mt-0.5">{fetchError}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={fetchSessions}>
+              <RefreshCw className="h-3.5 w-3.5" />
+              Tentar novamente
+            </Button>
           </CardContent>
         </Card>
       )}

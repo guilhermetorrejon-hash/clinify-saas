@@ -23,8 +23,16 @@ export class AppController {
   @Get('health')
   @Public()
   async healthCheck() {
+    // Teste rápido de conexão com PostgreSQL (usado pelo Railway health check)
+    try {
+      await this.prisma.$queryRawUnsafe('SELECT 1');
+    } catch (err: any) {
+      return { status: 'error', database: 'unreachable', message: err.message };
+    }
+
     const checks: Record<string, any> = {
       timestamp: new Date().toISOString(),
+      database: 'ok',
       env: {
         OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? `set (${process.env.OPENROUTER_API_KEY.substring(0, 12)}...)` : 'MISSING',
         OPENROUTER_TEXT_MODEL: process.env.OPENROUTER_TEXT_MODEL || 'NOT SET (default: anthropic/claude-sonnet-4-6)',
