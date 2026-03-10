@@ -250,11 +250,11 @@ export default function LandingPage() {
               Cancele quando quiser.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 items-start">
+          <div className="grid md:grid-cols-3 gap-6 sm:gap-8 items-start max-w-sm sm:max-w-none mx-auto">
             {plans.map((plan) => (
               <div
                 key={plan.slug}
-                className={`rounded-2xl p-8 border-2 transition-all ${
+                className={`rounded-2xl p-6 sm:p-8 border-2 transition-all ${
                   plan.highlight
                     ? 'border-blue-600 bg-white shadow-xl shadow-blue-600/10 relative'
                     : 'border-gray-100 bg-white hover:border-gray-200'

@@ -92,9 +92,9 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Usuários</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Usuários</h1>
           <p className="text-sm text-gray-500">{total} usuários cadastrados</p>
         </div>
         <div className="relative">
@@ -104,7 +104,7 @@ export default function AdminUsersPage() {
             placeholder="Buscar por nome ou email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-blue-300 w-72"
+            className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-blue-300 w-full sm:w-72"
           />
         </div>
       </div>
@@ -114,13 +114,13 @@ export default function AdminUsersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">Nome</th>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">Email</th>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">Plano</th>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">Status</th>
-                <th className="text-center px-5 py-3 text-gray-500 font-medium">Posts</th>
-                <th className="text-center px-5 py-3 text-gray-500 font-medium">Fotos</th>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">Cadastro</th>
+                <th className="text-left px-3 sm:px-5 py-3 text-gray-500 font-medium">Nome</th>
+                <th className="text-left px-3 sm:px-5 py-3 text-gray-500 font-medium hidden sm:table-cell">Email</th>
+                <th className="text-left px-3 sm:px-5 py-3 text-gray-500 font-medium">Plano</th>
+                <th className="text-left px-3 sm:px-5 py-3 text-gray-500 font-medium">Status</th>
+                <th className="text-center px-3 sm:px-5 py-3 text-gray-500 font-medium hidden md:table-cell">Posts</th>
+                <th className="text-center px-3 sm:px-5 py-3 text-gray-500 font-medium hidden md:table-cell">Fotos</th>
+                <th className="text-left px-3 sm:px-5 py-3 text-gray-500 font-medium hidden lg:table-cell">Cadastro</th>
               </tr>
             </thead>
             <tbody>
@@ -139,18 +139,19 @@ export default function AdminUsersPage() {
               ) : (
                 filtered.map((user) => (
                   <tr key={user.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-5 py-3.5">
+                    <td className="px-3 sm:px-5 py-3.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{user.name}</span>
+                        <span className="font-medium text-gray-900 text-xs sm:text-sm">{user.name}</span>
                         {user.role === 'ADMIN' && (
                           <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
                             ADMIN
                           </span>
                         )}
                       </div>
+                      <p className="text-xs text-gray-400 sm:hidden">{user.email}</p>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-500">{user.email}</td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-3 sm:px-5 py-3.5 text-gray-500 hidden sm:table-cell">{user.email}</td>
+                    <td className="px-3 sm:px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         {changingPlan === user.id ? (
                           <RefreshCw className="h-4 w-4 text-gray-400 animate-spin" />
@@ -160,7 +161,7 @@ export default function AdminUsersPage() {
                             onChange={(e) => {
                               if (e.target.value) handleChangePlan(user.id, e.target.value)
                             }}
-                            className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-blue-300 cursor-pointer"
+                            className="text-xs sm:text-sm border border-gray-200 rounded-lg px-1.5 sm:px-2 py-1.5 bg-white focus:outline-none focus:border-blue-300 cursor-pointer max-w-[120px] sm:max-w-none"
                           >
                             {!user.subscription && <option value="">Sem plano</option>}
                             {plans.map((plan) => (
@@ -172,24 +173,24 @@ export default function AdminUsersPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-3 sm:px-5 py-3.5">
                       {user.subscription ? (
                         <span
-                          className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
+                          className={`inline-flex px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-medium ${
                             STATUS_BADGE[user.subscription.status] || STATUS_BADGE.INACTIVE
                           }`}
                         >
                           {STATUS_LABEL[user.subscription.status] || user.subscription.status}
                         </span>
                       ) : (
-                        <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400">
+                        <span className="inline-flex px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-medium bg-gray-100 text-gray-400">
                           —
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-3.5 text-center text-gray-700">{user._count.posts}</td>
-                    <td className="px-5 py-3.5 text-center text-gray-700">{user._count.photos}</td>
-                    <td className="px-5 py-3.5 text-gray-500">{formatDate(user.createdAt)}</td>
+                    <td className="px-3 sm:px-5 py-3.5 text-center text-gray-700 hidden md:table-cell">{user._count.posts}</td>
+                    <td className="px-3 sm:px-5 py-3.5 text-center text-gray-700 hidden md:table-cell">{user._count.photos}</td>
+                    <td className="px-3 sm:px-5 py-3.5 text-gray-500 hidden lg:table-cell">{formatDate(user.createdAt)}</td>
                   </tr>
                 ))
               )}
