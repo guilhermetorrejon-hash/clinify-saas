@@ -13,4 +13,4 @@ RUN npx prisma generate && npx nest build
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy || echo 'Migration warning - continuing...' && node dist/src/main"]

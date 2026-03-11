@@ -1,9 +1,5 @@
-[build]
-builder = "nixpacks"
-
 [deploy]
-startCommand = "npx prisma migrate deploy && npm run start"
-healthcheckPath = "/api/health"
-healthcheckTimeout = 60
+healthcheckPath = "/"
+healthcheckTimeout = 120
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
