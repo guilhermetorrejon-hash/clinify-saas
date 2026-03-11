@@ -116,6 +116,7 @@ export class PostGenerationProcessor extends WorkerHost {
             this.logger.log(`[${postId}] Gerando ${isCarrossel ? 'slide' : 'variação'} ${i + 1}/${total} (${designStyle})...`);
 
             const isPhotoVariation = designStyle === 'fotografico'
+              || designStyle === 'recreate_similar'
               || designStyle === 'carrossel_foto_1'
               || designStyle === 'carrossel_foto_5';
 

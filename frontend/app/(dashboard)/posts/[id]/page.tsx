@@ -39,6 +39,9 @@ const styleLabels: Record<string, string> = {
   fotografico: 'Fotográfico',
   tipografico: 'Tipográfico',
   grafico: 'Gráfico',
+  recreate_similar: 'Similar',
+  recreate_different: 'Diferente',
+  recreate_bold: 'Ousada',
   // legado
   moderno: 'Moderno',
   minimalista: 'Minimalista',

@@ -8,6 +8,7 @@ import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { SuggestThemesDto } from './dto/suggest-themes.dto';
+import { RecreatePostDto } from './dto/recreate-post.dto';
 
 @ApiTags('Posts')
 @ApiBearerAuth()
@@ -19,6 +20,11 @@ export class PostsController {
   @Post('suggest-themes')
   suggestThemes(@CurrentUser() user: any, @Body() dto: SuggestThemesDto) {
     return this.postsService.suggestThemes(user.id, dto);
+  }
+
+  @Post('recreate')
+  recreate(@CurrentUser() user: any, @Body() dto: RecreatePostDto) {
+    return this.postsService.recreate(user.id, dto);
   }
 
   @Post()

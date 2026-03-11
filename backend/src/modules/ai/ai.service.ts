@@ -518,6 +518,56 @@ Gere headline, subtítulo e legenda. Responda APENAS com o JSON.`;
     }
   }
 
+  async extractTextFromImage(imageBase64: string, mimeType: string): Promise<{ headline: string; subtitle: string; caption: string }> {
+    const response = await this.gemini.models.generateContent({
+      model: process.env.GOOGLE_IMAGE_MODEL || 'nano-banana-pro-preview',
+      contents: {
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType, data: imageBase64 } },
+          {
+            text: `Analise esta imagem de post para redes sociais e extraia TODO o texto visível.
+
+Classifique os textos encontrados nas seguintes categorias:
+- headline: o texto principal/título da arte (geralmente o maior e mais destacado)
+- subtitle: texto de apoio/subtítulo (geralmente menor, abaixo ou próximo do headline)
+- outros: qualquer outro texto (nome do profissional, registro, CTA, etc.) — ignore estes
+
+Retorne SOMENTE um JSON válido neste formato (sem markdown, sem explicações):
+{
+  "headline": "texto principal extraído",
+  "subtitle": "subtítulo extraído ou string vazia",
+  "caption": ""
+}
+
+REGRAS:
+- Extraia o texto EXATAMENTE como está na imagem, sem traduzir ou modificar
+- Se não houver subtítulo claro, retorne subtitle como string vazia
+- caption sempre retorna vazio (será gerada separadamente)
+- Se não conseguir identificar textos, retorne tudo vazio`,
+          },
+        ],
+      },
+    });
+
+    const text = response.text || '';
+    try {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        return {
+          headline: parsed.headline || '',
+          subtitle: parsed.subtitle || '',
+          caption: '',
+        };
+      }
+      return { headline: '', subtitle: '', caption: '' };
+    } catch {
+      this.logger.warn(`Falha ao parsear OCR: ${text.substring(0, 200)}`);
+      return { headline: '', subtitle: '', caption: '' };
+    }
+  }
+
   async generatePostImage(params: {
     theme: string;
     category: PostCategory;
@@ -685,6 +735,55 @@ TIPOGRAFIA:
 
 DIFERENCIAÇÃO: esta arte deve parecer uma peça de marketing — fundo colorido vibrante, ${hasContextPhoto ? 'com a foto contextual integrada de forma estilizada' : 'formas geométricas, sem foto realista'}.
 IDENTIDADE: rodapé em branco/creme. Canto superior esquerdo VAZIO (reservado para logo em pós-processamento).`,
+
+      recreate_similar: `VARIAÇÃO — RECRIAÇÃO FIEL (mesmo conceito, design profissional):
+═══ RECRIAÇÃO DO POST ORIGINAL COM QUALIDADE PROFISSIONAL ═══
+
+O profissional enviou um post existente (feito no Canva ou similar) como referência.
+Sua tarefa: RECRIAR o mesmo conceito visual, mas com qualidade de agência de marketing premium.
+
+OBRIGATÓRIO:
+- PRESERVAR o mesmo conceito/layout geral do post original (posição dos elementos, hierarquia visual)
+- USAR os mesmos textos (headline e subtitle) EXATAMENTE como fornecidos — letra por letra
+- MELHORAR: tipografia profissional, cores harmoniosas, elementos mais refinados
+- RESULTADO: o profissional deve reconhecer que é "o mesmo post, mas muito melhor"
+
+PROIBIDO: mudar o conceito do layout, reorganizar drasticamente os elementos, trocar os textos.
+
+IDENTIDADE: rodapé discreto — nome + registro em tipografia pequena`,
+
+      recreate_different: `VARIAÇÃO — RECRIAÇÃO COM NOVO LAYOUT (mesmo texto, design diferente):
+═══ MESMO TEXTO, LAYOUT COMPLETAMENTE NOVO ═══
+
+O profissional enviou um post existente como referência.
+Sua tarefa: MANTER os textos e CRIAR um layout DIFERENTE e mais profissional.
+
+OBRIGATÓRIO:
+- USAR os mesmos textos (headline e subtitle) EXATAMENTE como fornecidos — letra por letra
+- CRIAR um layout/composição DIFERENTE do original — nova disposição dos elementos
+- Escolher uma paleta de cores profissional que funcione para saúde
+- Tipografia refinada e moderna
+
+PODE: mudar disposição, cores, fundo, estilo tipográfico, orientação dos elementos.
+PROIBIDO: alterar os textos.
+
+IDENTIDADE: rodapé discreto — nome + registro em tipografia pequena`,
+
+      recreate_bold: `VARIAÇÃO — REDESIGN OUSADO (mesmo texto, visual completamente diferente):
+═══ REDESIGN TOTAL — MÁXIMA CRIATIVIDADE ═══
+
+O profissional enviou um post existente como referência.
+Sua tarefa: um REDESIGN OUSADO e criativo, mantendo APENAS os textos.
+
+OBRIGATÓRIO:
+- USAR os mesmos textos (headline e subtitle) EXATAMENTE como fornecidos — letra por letra
+- Design COMPLETAMENTE DIFERENTE do original — conceito visual novo e surpreendente
+- Pode ser: editorial fotográfico, arte gráfica bold, tipografia dominante, minimalista extremo
+- Visual que impressione — como se uma agência premium tivesse redesenhado do zero
+
+O resultado deve ser tão diferente do original que pareça ter sido feito por outra pessoa/empresa, mas com os mesmos textos.
+
+IDENTIDADE: rodapé discreto — nome + registro em tipografia pequena`,
 
     };
 

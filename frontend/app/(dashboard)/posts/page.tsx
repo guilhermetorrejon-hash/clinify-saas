@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Sparkles, Loader2, AlertCircle, Eye } from 'lucide-react'
+import { Plus, Sparkles, Loader2, AlertCircle, Eye, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -121,12 +121,20 @@ export default function PostsPage() {
               : `${posts.length} ${posts.length === 1 ? 'post' : 'posts'} criado${posts.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <Link href="/posts/novo">
-          <Button size="lg">
-            <Plus className="h-5 w-5" />
-            Novo post
-          </Button>
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/posts/recriar">
+            <Button size="lg" variant="outline">
+              <RefreshCw className="h-5 w-5" />
+              Recriar post
+            </Button>
+          </Link>
+          <Link href="/posts/novo">
+            <Button size="lg">
+              <Plus className="h-5 w-5" />
+              Novo post
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Error message */}

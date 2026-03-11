@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Sparkles, LayoutDashboard, PlusCircle, Camera, User, LogOut, Shield, Menu, X } from 'lucide-react'
+import { Sparkles, LayoutDashboard, PlusCircle, RefreshCw, Camera, User, LogOut, Shield, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Criar Post', href: '/posts/novo', icon: PlusCircle },
+  { name: 'Recriar Post', href: '/posts/recriar', icon: RefreshCw },
   { name: 'Fotos Pro', href: '/fotos', icon: Camera },
   { name: 'Meu Perfil', href: '/perfil', icon: User },
 ]

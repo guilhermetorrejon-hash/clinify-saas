@@ -12,6 +12,7 @@ import { StorageService } from '../storage/storage.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { SuggestThemesDto } from './dto/suggest-themes.dto';
+import { RecreatePostDto } from './dto/recreate-post.dto';
 import { POST_GENERATION_QUEUE, PostGenerationJob } from '../../queues/post-generation.processor';
 import { UsageService } from '../usage/usage.service';
 import { Profession } from '@prisma/client';
@@ -114,6 +115,91 @@ export class PostsService {
     });
 
     return post;
+  }
+
+  async recreate(userId: string, dto: RecreatePostDto) {
+    // Consome 1 POST da cota
+    await this.usage.checkLimit(userId, 'POST');
+
+    // Upload da imagem original para R2
+    let originalImageUrl: string | null = null;
+    const match = dto.originalImageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      originalImageUrl = await this.storage.uploadBase64Image(
+        match[2], match[1], `posts/${userId}/recreate-original`,
+      );
+    }
+
+    // OCR — extrair textos do post original via Gemini Vision
+    let extractedTexts = { headline: '', subtitle: '', caption: '' };
+    if (match) {
+      extractedTexts = await this.ai.extractTextFromImage(match[2], match[1]);
+      this.logger.log(`[recreate] Textos extraídos — headline: "${extractedTexts.headline}", subtitle: "${extractedTexts.subtitle}"`);
+    }
+
+    // Criar post com 3 variações de recriação
+    const post = await this.prisma.post.create({
+      data: {
+        userId,
+        theme: extractedTexts.headline || 'Recriação de post',
+        category: 'EDUCATIVO', // categoria padrão para recriações
+        format: dto.format,
+        status: 'DRAFT',
+        headline: extractedTexts.headline,
+        subtitle: extractedTexts.subtitle,
+        contextPhotoUrl: originalImageUrl,
+        userPhotoUrl: dto.userPhotoUrl || null,
+        variations: {
+          createMany: {
+            data: [
+              { designStyle: 'recreate_similar' },
+              { designStyle: 'recreate_different' },
+              { designStyle: 'recreate_bold' },
+            ],
+          },
+        },
+      },
+      include: { variations: true },
+    });
+
+    await this.usage.record(userId, 'POST');
+
+    // Gera legenda em background e depois vai para TEXTS_READY
+    this.generateTextsForRecreate(post.id, userId, extractedTexts.headline).catch((err) => {
+      this.logger.error(`[recreate ${post.id}] Geração de legenda falhou: ${err.message || err}`);
+    });
+
+    return post;
+  }
+
+  private async generateTextsForRecreate(postId: string, userId: string, theme: string) {
+    const brandKit = await this.prisma.brandKit.findUnique({ where: { userId } });
+    const profession: Profession = brandKit?.profession || 'OUTRO';
+
+    let caption = '';
+    for (let attempt = 1; attempt <= 2 && !caption; attempt++) {
+      try {
+        const texts = await this.ai.generatePostTexts({
+          theme: theme || 'Post profissional para redes sociais',
+          category: 'EDUCATIVO',
+          format: 'FEED',
+          profession,
+          brandKit: brandKit || {},
+        });
+        caption = texts.caption;
+      } catch (err: any) {
+        this.logger.error(`[recreate ${postId}] Tentativa ${attempt}/2 de gerar legenda falhou: ${err.message || err}`);
+      }
+    }
+
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: {
+        caption: caption || null,
+        status: 'TEXTS_READY',
+      },
+    });
+    this.logger.log(`[recreate ${postId}] Legenda gerada → TEXTS_READY`);
   }
 
   private async generateTextsAsync(
