@@ -530,7 +530,11 @@ Gere headline, subtítulo e legenda. Responda APENAS com o JSON.`;
     userPhotoUrl?: string;
     contextPhotoUrl?: string;
   }): Promise<{ base64: string; mimeType: string }> {
-    const { theme, category, format, designStyle, brandKit, headline, subtitle, userPhotoUrl, contextPhotoUrl } = params;
+    const { theme, category, format, designStyle, brandKit, userPhotoUrl, contextPhotoUrl } = params;
+    // Sanitizar textos — remover markdown/formatação que a IA de texto pode ter inserido
+    const sanitize = (t: string) => t.replace(/[*_~`#\[\]{}]/g, '').trim();
+    const headline = sanitize(params.headline);
+    const subtitle = sanitize(params.subtitle);
     // Flag será atualizada para true SOMENTE se a foto contextual for carregada com sucesso
     let hasContextPhoto = false;
 
@@ -650,8 +654,7 @@ FUNDO OBRIGATÓRIO: cor sólida clara e limpa — off-white, creme, cinza claro 
 
 TIPOGRAFIA É A PROTAGONISTA ABSOLUTA:
 - A tipografia é o elemento principal e dominante da arte — ocupa a maior parte do espaço
-- Headline: texto GRANDE em serif bold, cor escura (preto/grafite), com palavra-chave em italic
-- Exemplo: "Dormir mal está" (regular) + "*destruindo*" (italic grande) + "seu coração" (regular)
+- Headline: texto GRANDE em serif bold, cor escura (preto/grafite). Pode usar italic em uma palavra-chave para destaque
 - Subtítulo: sans-serif leve, corpo menor, cinza médio
 - 1 detalhe decorativo: linha horizontal fina OU aspas tipográficas grandes OU sublinhado na cor da marca
 
@@ -793,13 +796,15 @@ REFERÊNCIAS DE ESTILO (analise e replique o nível de qualidade):
 As imagens enviadas mostram o padrão visual alvo. Observe e replique: paleta muted/editorial, tipografia refinada com mix serifado+italic, fotos cinematográficas com overlay sutil, identidade discreta em small caps, ZERO sombra de texto. Este é o nível de qualidade esperado.
 
 REGRAS TÉCNICAS ABSOLUTAS (violação = arte rejeitada):
-1. BORDA ZERO: A arte NÃO tem borda, moldura, frame, margem branca, margem cinza ou card flutuante de nenhum tipo. Cada pixel da borda externa da imagem DEVE ser parte do design/fundo. Se o fundo é escuro, os pixels da borda são escuros. Se o fundo é claro, os pixels da borda são claros. NUNCA haverá uma faixa branca ou cinza separando o design das bordas da imagem.
+1. BORDA ZERO: A arte NÃO tem borda, moldura, frame, margem branca, margem cinza ou card flutuante de nenhum tipo. Cada pixel da borda externa da imagem DEVE ser parte do design/fundo. Se o fundo é escuro, os pixels da borda são escuros. Se o fundo é claro, os pixels da borda são claros. NUNCA haverá uma faixa branca ou cinza separando o design das bordas da imagem. Verifique os 4 lados: topo, base, esquerda, direita — NENHUM pode ter borda/moldura.
 2. PREENCHIMENTO TOTAL: Fundo preenche 100% do canvas de borda a borda — válido para TODAS as variações. A imagem gerada ocupa todo o espaço disponível sem exceção.
 3. CONTRASTE OBRIGATÓRIO: todo texto visível com contraste mínimo 4.5:1. Texto claro (branco/creme) em fundos escuros. Texto escuro (preto/grafite) em fundos claros. NUNCA texto escuro sobre fundo escuro.
 4. PROIBIDO sombra de texto (text-shadow/drop-shadow) em qualquer variação. Legibilidade garantida por: (a) posicionar o texto em área da foto com contraste natural, (b) overlay/gradiente suave APENAS na região onde o texto aparece, ou (c) fundo sólido atrás do bloco de texto. Texto limpo, sem efeitos.
 5. PROIBIDO RENDERIZAR CÓDIGOS DE COR: NUNCA escreva códigos hexadecimais (ex: #FFFFFF, #0e82eb), códigos RGB, ou qualquer código técnico como texto visível na arte. Os códigos neste prompt são instruções técnicas para você, NÃO textos para exibir na imagem. Na arte, use apenas palavras e frases naturais.
-6. PROIBIDO ESCREVER "LOGO": NUNCA escreva a palavra "Logo", "Logotipo", "Marca" ou qualquer placeholder de marca como texto na arte. A logo será inserida automaticamente em pós-processamento. Deixe o canto superior esquerdo LIMPO e sem qualquer elemento.${isCarrosselSlide ? `
-7. SLIDE ÚNICO OBRIGATÓRIO: Você está gerando o SLIDE ${carrosselSlideNum} de 5 de um carrossel do Instagram. Gere APENAS UMA imagem independente e completa. PROIBIDO gerar collage, grade, mosaico, painel com múltiplos frames, ou montagem que mostre outros slides dentro da imagem. Cada slide do carrossel é gerado e publicado separadamente.` : ''}
+6. PROIBIDO ESCREVER "LOGO": NUNCA escreva a palavra "Logo", "Logotipo", "Marca" ou qualquer placeholder de marca como texto na arte. A logo será inserida automaticamente em pós-processamento. Deixe o canto superior esquerdo LIMPO e sem qualquer elemento.
+7. TEXTO LIMPO — PROIBIDO CARACTERES DE FORMATAÇÃO: NUNCA renderize asteriscos (*), underscores (_), hashtags (#), colchetes ([]), chaves ({}) ou qualquer símbolo de marcação/markdown como texto visível na arte. O texto na imagem deve ser SOMENTE palavras legíveis em português, sem nenhum caractere de formatação. Se quiser dar ênfase a uma palavra, use ITALIC ou NEGRITO tipográfico real — NUNCA insira asteriscos ao redor da palavra. Exemplo: a palavra "crise" deve aparecer como crise em itálico, NUNCA como *crise* com asteriscos visíveis.
+8. QUALIDADE TIPOGRÁFICA PROFISSIONAL: Todo texto na arte deve ter qualidade de peça publicitária — letras nítidas, espaçamento proporcional, alinhamento preciso. PROIBIDO: texto cortado, sobreposto ilegível, fontes pixelizadas, kerning irregular, texto saindo da área segura da imagem.${isCarrosselSlide ? `
+9. SLIDE ÚNICO OBRIGATÓRIO: Você está gerando o SLIDE ${carrosselSlideNum} de 5 de um carrossel do Instagram. Gere APENAS UMA imagem independente e completa. PROIBIDO gerar collage, grade, mosaico, painel com múltiplos frames, ou montagem que mostre outros slides dentro da imagem. Cada slide do carrossel é gerado e publicado separadamente.` : ''}
 
 DIMENSÕES E FORMATO — REGRA ABSOLUTA:
 ${layoutInstructions[format]}
@@ -822,6 +827,7 @@ PROIBIDO traduzir, parafrasear, resumir, mudar idioma ou inventar texto.
 O idioma é PORTUGUÊS DO BRASIL. Se o headline diz "você", escreva "você" — NUNCA "you".
 Se o headline diz "Presencial ou online: qual é o seu?", escreva EXATAMENTE isso.
 Qualquer alteração nos textos = arte REJEITADA.
+LEMBRETE: renderize SOMENTE o texto puro — sem asteriscos, sem markdown, sem símbolos de formatação. Para ênfase, use tipografia (itálico ou negrito visual), NUNCA caracteres como * ou _.
 ═══════════════════════════════════════════════════════
 - Tema: "${theme}"
 - ${headlineInstruction}
