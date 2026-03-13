@@ -721,7 +721,7 @@ export default function PostResultPage() {
                 onClick={() => {
                   const variation = post.variations.find((v) => v.id === selectedVariation)
                   if (!variation?.imageUrl) return
-                  downloadImage(variation.imageUrl, `clinify-post-${post.format.toLowerCase()}.jpg`)
+                  downloadImage(variation.imageUrl, `clinicfeed-post-${post.format.toLowerCase()}.jpg`)
                 }}
               >
                 <Download className="h-4 w-4" />

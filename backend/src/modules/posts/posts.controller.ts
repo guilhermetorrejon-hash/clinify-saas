@@ -84,7 +84,7 @@ export class PostsController {
       const buffer = Buffer.from(await response.arrayBuffer());
       res.set({
         'Content-Type': ct,
-        'Content-Disposition': `attachment; filename="${filename || 'clinify-imagem.jpg'}"`,
+        'Content-Disposition': `attachment; filename="${filename || 'clinicfeed-imagem.jpg'}"`,
         'Content-Length': buffer.length.toString(),
       });
       res.send(buffer);

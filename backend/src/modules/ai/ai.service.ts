@@ -157,8 +157,8 @@ export class AiService {
       baseURL: 'https://openrouter.ai/api/v1',
       apiKey: process.env.OPENROUTER_API_KEY || '',
       defaultHeaders: {
-        'HTTP-Referer': 'https://clinify.com.br',
-        'X-Title': 'Clinify',
+        'HTTP-Referer': 'https://clinicfeed.com.br',
+        'X-Title': 'ClinicFeed',
       },
     });
     this.gemini = new GoogleGenAI({

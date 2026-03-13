@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Clinify — Marketing Digital para Profissionais da Saúde",
+  title: "ClinicFeed — Marketing Digital para Profissionais da Saúde",
   description:
     "Crie posts profissionais para suas redes sociais em minutos com inteligência artificial. Dentro das normas do CFM.",
 };

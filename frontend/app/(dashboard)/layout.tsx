@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Sparkles, LayoutDashboard, PlusCircle, RefreshCw, Camera, User, LogOut, Shield, Menu, X } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, RefreshCw, Camera, User, LogOut, Shield, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 
@@ -38,10 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <>
       <div className="p-6 border-b border-gray-100">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-blue-600 flex items-center justify-center">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
-          <span className="font-bold text-gray-900">Clinify</span>
+          <img src="/logo.png" alt="ClinicFeed" className="h-8 w-auto" />
         </Link>
       </div>
 
@@ -123,10 +120,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Menu className="h-5 w-5" />
         </button>
         <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-blue-600 flex items-center justify-center">
-            <Sparkles className="h-3.5 w-3.5 text-white" />
-          </div>
-          <span className="font-bold text-gray-900 text-sm">Clinify</span>
+          <img src="/logo.png" alt="ClinicFeed" className="h-7 w-auto" />
         </div>
       </div>
 

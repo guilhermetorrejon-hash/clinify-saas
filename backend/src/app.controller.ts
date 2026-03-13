@@ -17,7 +17,7 @@ export class AppController {
   @Get()
   @Public()
   getHello() {
-    return { status: 'ok', service: 'clinify-api', timestamp: new Date().toISOString() };
+    return { status: 'ok', service: 'clinicfeed-api', timestamp: new Date().toISOString() };
   }
 
   @Get('health')

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import api from '@/lib/api'
@@ -36,10 +36,7 @@ export default function RegisterPage() {
       {/* Left panel */}
       <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 flex-col justify-between p-12">
         <Link href="/" className="flex items-center gap-2">
-          <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center">
-            <Sparkles className="h-6 w-6 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-white">Clinify</span>
+          <img src="/logo.png" alt="ClinicFeed" className="h-10 w-auto brightness-0 invert" />
         </Link>
         <div>
           <blockquote className="text-2xl font-medium text-white leading-relaxed mb-6">
@@ -50,7 +47,7 @@ export default function RegisterPage() {
               <span className="text-sm font-bold text-white">CL</span>
             </div>
             <div>
-              <p className="font-semibold text-white">Clinify</p>
+              <p className="font-semibold text-white">ClinicFeed</p>
               <p className="text-blue-200 text-sm">IA para profissionais da saúde</p>
             </div>
           </div>
@@ -62,10 +59,7 @@ export default function RegisterPage() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-2 mb-10">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">Clinify</span>
+            <img src="/logo.png" alt="ClinicFeed" className="h-9 w-auto" />
           </div>
 
           <div className="mb-8">

@@ -17,14 +17,17 @@ async function bootstrap() {
   }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
 
-  // ✅ Validação rigorosa de FRONTEND_URL
+  // ✅ CORS — aceita múltiplas origens separadas por vírgula
   const frontendUrl = process.env.FRONTEND_URL;
   if (!frontendUrl && process.env.NODE_ENV === 'production') {
     throw new Error('❌ FRONTEND_URL é obrigatório em produção');
   }
+  const allowedOrigins = frontendUrl
+    ? frontendUrl.split(',').map(u => u.trim())
+    : ['http://localhost:3000', 'http://localhost:3002'];
 
   app.enableCors({
-    origin: frontendUrl || 'http://localhost:3002',
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -43,8 +46,8 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   const config = new DocumentBuilder()
-    .setTitle('Clinify API')
-    .setDescription('API da plataforma Clinify para profissionais da saúde')
+    .setTitle('ClinicFeed API')
+    .setDescription('API da plataforma ClinicFeed para profissionais da saúde')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -53,7 +56,7 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`Clinify API rodando na porta ${port}`);
+  console.log(`ClinicFeed API rodando na porta ${port}`);
   console.log(`Swagger: http://localhost:${port}/api/docs`);
 }
 bootstrap();
